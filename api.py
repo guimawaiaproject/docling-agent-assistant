@@ -5,15 +5,16 @@ FastAPI backend for mobile/web access to the invoice extraction pipeline.
 import os
 import logging
 from contextlib import asynccontextmanager
+import numpy as np
+import pandas as pd
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.config import get_config
 from backend.core.db_manager import DBManager
 from backend.core.orchestrator import ExtractionOrchestrator
 from backend.core.monitoring import init_monitoring, Metrics
-from backend.middleware.security import APIKeyMiddleware, RateLimitMiddleware
 
 # ═══════════════════════════════════════
 # CONFIG
@@ -60,8 +61,6 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["X-API-Key", "Content-Type"],
 )
-app.add_middleware(RateLimitMiddleware, max_requests=30, window=60)
-app.add_middleware(APIKeyMiddleware)
 
 
 # ═══════════════════════════════════════
@@ -98,7 +97,7 @@ async def healthcheck():
 
 
 @app.post("/api/v1/invoices/process", tags=["Invoices"])
-async def process_invoice(
+def process_invoice(
     file: UploadFile = File(...),
     orch: ExtractionOrchestrator = Depends(get_orchestrator),
 ):
@@ -111,7 +110,7 @@ async def process_invoice(
             400, detail=f"Unsupported file type: {file.content_type}"
         )
 
-    contents = await file.read()
+    contents = file.file.read()
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(
             413,
@@ -161,6 +160,9 @@ async def get_catalogue(
     if df.empty:
         return {"products": [], "total": 0}
 
+    # Nettoyage anti-NaN/Inf robuste pour la sérialisation JSON
+    df = df.replace([np.inf, -np.inf], 0).fillna(0)
+
     if famille:
         df = df[df["famille"] == famille]
     if fournisseur:
@@ -192,3 +194,11 @@ async def get_invoices(db: DBManager = Depends(get_db)):
     if df.empty:
         return {"invoices": [], "total": 0}
     return {"invoices": df.to_dict("records"), "total": len(df)}
+
+
+@app.get("/api/v1/watcher/activity", tags=["System"])
+async def get_watcher_activity():
+    """Get the latest activity from the folder watcher."""
+    if hasattr(app.state, "watcher"):
+        return {"activity": app.state.watcher.get_activity()}
+    return {"activity": []}

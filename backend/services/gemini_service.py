@@ -1,6 +1,6 @@
 """
 Gemini AI service — multimodal invoice extraction.
-Sends PDF/image directly to Gemini 2.0 Flash for structured extraction.
+Sends PDF/image directly to Gemini 2.5 Flash for structured extraction.
 """
 import json
 import logging
@@ -69,7 +69,7 @@ class GeminiService:
 
         if config.has_gemini_key:
             self._client = genai.Client(api_key=config.gemini_api_key)
-            logger.info("Gemini client initialized (gemini-2.0-flash)")
+            logger.info("Gemini client initialized (gemini-2.5-flash)")
         else:
             logger.warning("Gemini API key missing — extraction disabled.")
 
@@ -97,7 +97,7 @@ class GeminiService:
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 response = self._client.models.generate_content(
-                    model="gemini-2.0-flash",
+                    model="gemini-2.5-flash",
                     contents=[EXTRACTION_PROMPT, file_part],
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
@@ -144,7 +144,7 @@ class GeminiService:
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 response = self._client.models.generate_content(
-                    model="gemini-2.0-flash",
+                    model="gemini-2.5-flash",
                     contents=[prompt],
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",

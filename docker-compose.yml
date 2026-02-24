@@ -1,4 +1,4 @@
-# docker-compose.yml — Local development only
+# docker-compose.yml — Docling Agent Premium
 version: "3.9"
 
 services:
@@ -6,53 +6,33 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    command: [ "streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0" ]
     ports:
       - "8501:8501"
     environment:
-      - API_URL=http://app:8000
-      - API_KEYS=${API_KEYS}
+      - API_URL=http://api:8000
     depends_on:
-      app:
+      api:
         condition: service_healthy
     volumes:
       - ./app.py:/app/app.py
 
-  app:
+  api:
     build: .
     ports:
       - "8000:8000"
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - OCR_SPACE_API_KEY=${OCR_SPACE_API_KEY}
-      - API_KEYS=${API_KEYS}
-      - DATABASE_URL=postgresql://docling:docling@db:5432/docling_agent
-    depends_on:
-      db:
-        condition: service_healthy
+      - WATCHDOG_FOLDER=/app/Docling_Factures
     volumes:
-      - ./backend:/app/backend  # Hot reload in dev
+      - docling_data:/app/data # Persist SQLite locally
+      - ./backend:/app/backend # Hot reload in dev
+      - ./Docling_Factures:/app/Docling_Factures # Dossier Magique Local <-> Container
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: docling
-      POSTGRES_PASSWORD: docling
-      POSTGRES_DB: docling_agent
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U docling"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
 volumes:
-  pgdata:
+  docling_data:

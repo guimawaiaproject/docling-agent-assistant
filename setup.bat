@@ -54,8 +54,8 @@ echo.
 echo [4/4] Lancement de l'application...
 echo.
 echo ==========================================
-echo   Ouvrez : http://localhost:8501
+echo   Lancement du script interactif V2
 echo ==========================================
 echo.
-venv\Scripts\streamlit.exe run app.py
+call run_local.bat
 pause

@@ -35,4 +35,11 @@ echo "=========================================="
 echo "   Ouvrez : http://localhost:8501"
 echo "=========================================="
 echo
+# Démarrer l'API en fond
+python3 -m uvicorn api:app --host 0.0.0.0 --port 8000 &
+
+# Attendre 2 secondes
+sleep 2
+
+# Démarrer Streamlit
 streamlit run app.py
