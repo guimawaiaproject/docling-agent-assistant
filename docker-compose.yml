@@ -1,0 +1,36 @@
+# docker-compose.yml — Local development only
+version: "3.9"
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OCR_SPACE_API_KEY=${OCR_SPACE_API_KEY}
+      - DATABASE_URL=postgresql://docling:docling@db:5432/docling_agent
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend  # Hot reload in dev
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: docling
+      POSTGRES_PASSWORD: docling
+      POSTGRES_DB: docling_agent
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docling"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:

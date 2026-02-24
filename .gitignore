@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# Environment
+.env
+.env.local
+!.env.example
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build & cache
+build/
+dist/
+coverage/
+*.log
+.pytest_cache/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Credentials & Secrets (SECURITY — never commit these)
+credentials.json
+service_account.json
+*.pem
+*.key
+*.p12
+
+# Test data (large binary files)
+PDF Test/

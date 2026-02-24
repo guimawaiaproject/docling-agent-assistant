@@ -1,0 +1,26 @@
+# Core
+google-genai>=1.0
+pandas>=2.0
+streamlit==1.38.0
+openpyxl>=3.1
+pydantic>=2.0
+pydantic-settings>=2.0
+pillow>=10.0
+python-dotenv>=1.0
+requests
+
+# Google Cloud (Phase 3)
+google-api-python-client>=2.0
+google-auth>=2.0
+
+# API REST (FastAPI)
+fastapi>=0.115
+uvicorn[standard]>=0.30
+
+# Monitoring (optional — graceful if missing)
+# sentry-sdk[fastapi]>=2.0
+
+# Dev
+pytest>=8.0
+pytest-mock>=3.0
+pytest-cov>=5.0
