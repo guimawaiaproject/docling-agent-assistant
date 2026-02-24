@@ -2,6 +2,22 @@
 version: "3.9"
 
 services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://app:8000
+      - API_KEYS=${API_KEYS}
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - ./app.py:/app/app.py
+
   app:
     build: .
     ports:
@@ -9,12 +25,18 @@ services:
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OCR_SPACE_API_KEY=${OCR_SPACE_API_KEY}
+      - API_KEYS=${API_KEYS}
       - DATABASE_URL=postgresql://docling:docling@db:5432/docling_agent
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./backend:/app/backend  # Hot reload in dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   db:
     image: postgres:16-alpine
