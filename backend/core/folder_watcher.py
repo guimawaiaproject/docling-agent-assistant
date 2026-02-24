@@ -13,6 +13,17 @@ from backend.core.orchestrator import ExtractionOrchestrator
 
 logger = logging.getLogger(__name__)
 
+def resolve_shortcut(path: Path) -> Path:
+    """Resolves a Windows .lnk shortcut to its target path."""
+    try:
+        import win32com.client
+        shell = win32com.client.Dispatch("WScript.Shell")
+        shortcut = shell.CreateShortCut(str(path))
+        return Path(shortcut.Targetpath)
+    except Exception as e:
+        logger.error(f"❌ Impossible de résoudre le raccourci {path.name}: {e}")
+        return None
+
 class InvoiceHandler(FileSystemEventHandler):
     def __init__(self, orchestrator: ExtractionOrchestrator, watch_path: str, watcher):
         self.orchestrator = orchestrator
@@ -30,6 +41,18 @@ class InvoiceHandler(FileSystemEventHandler):
             return
 
         file_path = Path(event.src_path)
+
+        # Handle Windows Shortcuts
+        if file_path.suffix.lower() == '.lnk':
+            target = resolve_shortcut(file_path)
+            if target and target.exists():
+                logger.info(f"🔗 Raccourci détecté : {file_path.name} -> {target}")
+                if target.is_file():
+                    self.process_file(target)
+                elif target.is_dir():
+                    self.scan_folder(target)
+            return
+
         if file_path.suffix.lower() not in ['.pdf', '.jpg', '.jpeg', '.png', '.webp']:
             return
 
@@ -42,18 +65,37 @@ class InvoiceHandler(FileSystemEventHandler):
         self.process_file(file_path)
 
     def scan_existing(self):
-        """Processes files already present in the folder (and subfolders) at startup."""
-        # Use rglob to find all files in subfolders
-        for item in self.watch_path.rglob("*"):
-            if item.is_file() and item.suffix.lower() in ['.pdf', '.jpg', '.jpeg', '.png', '.webp']:
-                # Skip files already in Traitees or Erreurs
-                if "Traitees" in item.parts or "Erreurs" in item.parts:
-                    continue
+        """Processes files and shortcuts already present at startup."""
+        self.scan_folder(self.watch_path)
 
-                logger.info(f"🚚 Deep Scan : Traitement de {item.name} ({item.relative_to(self.watch_path)})")
-                size = f"{round(os.path.getsize(item) / 1024, 1)} KB"
-                self.watcher.add_activity(item.name, "🔄 En cours (Scan Deep)", size=size)
-                self.process_file(item)
+    def scan_folder(self, folder_path: Path):
+        """Recursively scans a folder for files and shortcuts."""
+        print(f"DEBUG: Scanning folder {folder_path}", flush=True)
+        try:
+            for item in folder_path.rglob("*"):
+                if item.is_file():
+                    ext = item.suffix.lower()
+                    if ext in ['.pdf', '.jpg', '.jpeg', '.png', '.webp']:
+                        if "Traitees" in item.parts or "Erreurs" in item.parts:
+                            continue
+
+                        logger.info(f"🚚 Deep Scan : {item.name}")
+                        print(f"DEBUG: Found file {item.name}", flush=True)
+                        size = f"{round(os.path.getsize(item) / 1024, 1)} KB"
+                        self.watcher.add_activity(item.name, "🔄 En cours (Deep)", size=size)
+                        self.process_file(item)
+                    elif ext == '.lnk':
+                        target = resolve_shortcut(item)
+                        if target and target.exists():
+                            if target.is_file():
+                                self.process_file(target)
+                            elif target.is_dir():
+                                # Avoid infinite recursion
+                                if self.watch_path in target.parents or target == self.watch_path:
+                                    continue
+                                self.scan_folder(target)
+        except Exception as e:
+            print(f"DEBUG: Error scanning {folder_path}: {e}", flush=True)
 
     def process_file(self, file_path: Path):
         logger.info(f"🔍 Chien de garde : Traitement détecté pour {file_path.name}")
@@ -100,6 +142,7 @@ class DoclingWatcher:
         return self.activity_log[::-1] # Newest first
 
     def start(self):
+        print(f"DEBUG: Starting DoclingWatcher on {self.watch_path}", flush=True)
         # Create watch directory if it doesn't exist
         os.makedirs(self.watch_path, exist_ok=True)
 
@@ -107,9 +150,11 @@ class DoclingWatcher:
         # Enable recursive monitoring
         self.observer.schedule(handler, self.watch_path, recursive=True)
         self.observer.start()
+        print("DEBUG: Watchdog started and observer active", flush=True)
         logger.info(f"🛡️ Chien de garde activé sur le dossier : {os.path.abspath(self.watch_path)}")
 
         # Initial scan
+        print("DEBUG: Launching initial scan", flush=True)
         handler.scan_existing()
 
     def stop(self):

@@ -7,7 +7,7 @@
 
 ## 📌 Présentation
 
-**Docling Agent** est un assistant IA métier taillé pour les factures de matériaux de construction. Il s'appuie exclusivement sur **Google Gemini 2.5 Flash** (vision multimodale) pour extraire instantanément le contenu de factures multilingues (Catalan/Espagnol) et le normaliser en français.
+**Docling Agent** est un assistant IA métier taillé pour les factures de matériaux de construction. Il s'appuie exclusivement sur **Google Gemini 3 Flash** (vision multimodale et exécution de code mathématique) pour extraire instantanément le contenu de factures multilingues (Catalan/Espagnol) et le normaliser en français.
 
 ### Cas d'usage principal
 
@@ -16,7 +16,7 @@ Il les télécharge en lot → l'application traite toutes les factures en tâch
 
 ### Fonctionnalités clés de la version Premium
 
-- 🧠 **Vision IA Intégrale** — Analyse directe de PDF et photos (JPG, PNG, WebP) par Gemini 2.5 Flash sans OCR externe.
+- 🧠 **Vision IA Intégrale** — Analyse directe de PDF et photos (JPG, PNG, WebP) par Gemini 3 Flash sans OCR externe, avec un préprocesseur OpenCV intégré pour lisser les photos mobiles de mauvaise qualité.
 - 🚀 **Traitement Asynchrone (Anti-Timeout)** — Envoi de lots de fichiers avec gestion par File d'Attente (BackgroundTasks) et Polling intelligent de l'interface graphique.
 - 📁 **Le Dossier Magique (Type OneDrive)** — Traitement en arrière-plan transparent (`watchdog`). Déposez vos PDF dans un dossier et la base se met à jour toute seule.
 - ⚡ **Cache Interface (Zéro Latence)** — Utilisation experte de `@st.cache_data` (Streamlit) pour rendre la navigation dans le catalogue instantanée avec purge intelligente à l'édition.
@@ -32,7 +32,7 @@ Il les télécharge en lot → l'application traite toutes les factures en tâch
 ```
 📸 Photo / PDF facture
     ↓
-🧠 Gemini 2.5 Flash (Extraction structurée + traduction FR + classification BTP)
+🧠 Gemini 3 Flash (Extraction structurée + traduction FR + classification BTP + Auto-Check Mathématique)
     ↓
 ✅ Validation Pydantic (Schémas stricts, calcul automatique de TVA/IVA)
     ↓
@@ -66,14 +66,15 @@ docling-agent-assistant/
 │   ├── core/
 │   │   ├── config.py                   # 🔐  Validation de l'environnement (clés API)
 │   │   ├── db_manager.py              # 🗄️  Contrôleur SQLite Thread-Safe
-│   │   ├── orchestrator.py            # 🎯  Chef d'atelier IA
+│   │   ├── orchestrator.py            # 🎯  Chef d'atelier IA & Routage Image Preprocessor
 │   │   └── monitoring.py              # ⏱️  Calculateur de performances temps réel
 │   │
 │   ├── schemas/
-│   │   └── invoice.py                 # 📐  Définition Pydantic ("Le Moule de la facture")
+│   │   └── invoice.py                 # 📐  Définition Pydantic ("Le Moule de la facture") avec gestion du Confidence Score
 │   │
 │   └── services/
-│       └── gemini_service.py          # 🧠  Connecteur Google Gemini 2.5 Flash
+│       ├── gemini_service.py          # 🧠  Connecteur Google Gemini 3 Flash
+│       └── image_preprocessor.py      # 🖼️  Nettoyeur de Photos Mobiles OpenCV
 │
 ├── data_cache.db                       # 💾  Base de données locale (Autocréée)
 ├── .env                                # 🔑  Variables (GEMINI_API_KEY)
@@ -100,6 +101,7 @@ class Product(BaseModel):
     remise_pct: float | None  # Pourcentage de remise
     prix_remise_ht: float     # Prix unitaire après remise HT
     prix_ttc_iva21: float     # Prix TTC avec IVA 21% (auto-calculé si 0)
+    confidence: str           # "high" ou "low" (Vérification arithmétique de l'IA)
 ```
 
 **Auto-calcul Intégré :** S'assure que tout tarif remisé renvoie forcément le prix facturé en calculant `prix_ttc_iva21 = prix_remise_ht × 1.21`.
@@ -116,7 +118,7 @@ class Product(BaseModel):
 
 ---
 
-## 🧠 L'Intelligence (Gemini 2.5 Flash)
+## 🧠 L'Intelligence (Gemini 3 Flash)
 
 ### Configuration Optimale
 - Le prompt charge l'IA d'intervenir en tant qu'**Expert Comptable BTP**.

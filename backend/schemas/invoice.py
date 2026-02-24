@@ -3,7 +3,6 @@ Pydantic schemas for invoice data and product catalogue.
 """
 from pydantic import BaseModel, Field, model_validator
 from typing import List, Optional
-from datetime import datetime
 
 
 class Product(BaseModel):

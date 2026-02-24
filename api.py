@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 import numpy as np
 import pandas as pd
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.config import get_config
@@ -33,11 +33,24 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 # ═══════════════════════════════════════
 # LIFESPAN
 # ═══════════════════════════════════════
+# ═══════════════════════════════════════
+# LIFESPAN
+# ═══════════════════════════════════════
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialisation DB Pool AsyncPg et création des tables
+    try:
+        await DBManager.init_db()
+    except Exception as e:
+        logger.error(f"Failed to init DB on startup: {e}")
+
+    # Injection dépendances globales (Orchestrateur n'a plus besoin d'instance DB)
+    app.state.orchestrator = ExtractionOrchestrator(config=config)
+
     init_monitoring(sentry_dsn=os.getenv("SENTRY_DSN"))
-    logger.info("Docling Agent API started")
+    logger.info("Docling Agent API started with Neon DB")
     yield
+    await DBManager.close()
     logger.info("Docling Agent API shutting down")
 
 
@@ -64,27 +77,13 @@ app.add_middleware(
 
 
 # ═══════════════════════════════════════
-# DEPENDENCIES
-# ═══════════════════════════════════════
-def get_db() -> DBManager:
-    return DBManager(config.db_path)
-
-
-def get_orchestrator(
-    db: DBManager = Depends(get_db),
-) -> ExtractionOrchestrator:
-    return ExtractionOrchestrator(config=config, db_manager=db)
-
-
-# ═══════════════════════════════════════
 # ENDPOINTS
 # ═══════════════════════════════════════
 @app.get("/health", tags=["System"])
 async def healthcheck():
     """Healthcheck for uptime monitoring (Betterstack, Render)."""
     try:
-        db = get_db()
-        stats = db.get_stats()
+        stats = await DBManager.get_stats()
         return {
             "status": "healthy",
             "version": "2.0.0",
@@ -97,10 +96,7 @@ async def healthcheck():
 
 
 @app.post("/api/v1/invoices/process", tags=["Invoices"])
-def process_invoice(
-    file: UploadFile = File(...),
-    orch: ExtractionOrchestrator = Depends(get_orchestrator),
-):
+async def process_invoice(file: UploadFile = File(...)):
     """
     Upload and process an invoice (PDF or image).
     Extracts products, translates to French, stores in catalogue.
@@ -110,7 +106,7 @@ def process_invoice(
             400, detail=f"Unsupported file type: {file.content_type}"
         )
 
-    contents = file.file.read()
+    contents = await file.read()
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(
             413,
@@ -118,7 +114,8 @@ def process_invoice(
         )
 
     try:
-        result = orch.process_file(contents, file.filename)
+        orch = app.state.orchestrator
+        result = await orch.process_file(contents, file.filename)
         Metrics.increment("invoices_processed")
         Metrics.increment("products_added", result.products_added)
         Metrics.increment("products_updated", result.products_updated)
@@ -147,7 +144,6 @@ async def get_catalogue(
     famille: str | None = None,
     fournisseur: str | None = None,
     search: str | None = None,
-    db: DBManager = Depends(get_db),
 ):
     """
     Retrieve product catalogue with optional filters.
@@ -156,7 +152,8 @@ async def get_catalogue(
     - **fournisseur**: Filter by supplier name
     - **search**: Full-text search on designations
     """
-    df = db.get_catalogue()
+    df_list = await DBManager.get_catalogue()
+    df = pd.DataFrame(df_list)
     if df.empty:
         return {"products": [], "total": 0}
 
@@ -182,15 +179,16 @@ async def get_catalogue(
 
 
 @app.get("/api/v1/stats", tags=["System"])
-async def get_stats(db: DBManager = Depends(get_db)):
+async def get_stats():
     """Get database statistics."""
-    return db.get_stats()
+    return await DBManager.get_stats()
 
 
 @app.get("/api/v1/invoices", tags=["Invoices"])
-async def get_invoices(db: DBManager = Depends(get_db)):
+async def get_invoices():
     """List all processed invoices."""
-    df = db.get_invoices()
+    df_list = await DBManager.get_invoices()
+    df = pd.DataFrame(df_list)
     if df.empty:
         return {"invoices": [], "total": 0}
     return {"invoices": df.to_dict("records"), "total": len(df)}

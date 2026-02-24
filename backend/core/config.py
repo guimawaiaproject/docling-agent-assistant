@@ -9,7 +9,7 @@ class AppConfig(BaseSettings):
     """Application-wide configuration."""
 
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
-    db_path: str = Field(default="data_cache.db")
+    database_url: str = Field(default="", alias="DATABASE_URL")
 
     model_config = {
         "env_file": ".env",

@@ -12,56 +12,54 @@ from google import genai
 from google.genai import types
 
 from backend.core.config import AppConfig
-from backend.schemas.invoice import InvoiceResult, Product
+from backend.schemas.invoice import InvoiceResult
 
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
 BASE_DELAY = 5  # seconds
 
-EXTRACTION_PROMPT = """Tu es un expert comptable spécialisé en matériaux de construction (BTP).
-Analyse cette facture et extrais TOUTES les lignes d'articles.
+SYSTEM_PROMPT = """Tu es un expert comptable BTP spécialisé dans les factures franco-espagnoles et catalanes.
 
-Pour chaque article, fournis :
-- "fournisseur": le nom du fournisseur (en-tête de la facture)
-- "designation_raw": le nom exact tel qu'écrit sur la facture (souvent en Catalan ou Espagnol)
-- "designation_fr": la traduction en Français du nom de l'article
-- "famille": la catégorie (Ciment, Gros œuvre, Armature, Quincaillerie, Treillis, Maçonnerie, Ragréage, Finition, Cloison, Plâtre, Additif, Granulat, Évacuation, Colle, Logistique, Outillage, Étanchéité, Isolation, Peinture, Électricité, Plomberie, ou autre)
-- "unite": l'unité de mesure (sac, kg, m², ml, m, unité, t, litre, rouleau, pièce)
-- "prix_brut_ht": le prix unitaire brut HT
-- "remise_pct": le pourcentage de remise (null si aucune)
-- "prix_remise_ht": le prix unitaire après remise HT
-- "prix_ttc_iva21": le prix unitaire TTC avec IVA 21%
+MISSION : Extraire TOUTES les lignes produit de cette facture et retourner un JSON valide.
 
-Extrais aussi les métadonnées de la facture :
-- "numero_facture": le numéro de facture
-- "date_facture": la date de la facture (format JJ/MM/AAAA)
-- "fournisseur": le nom du fournisseur
+RÈGLES STRICTES :
+1. Extraire chaque ligne produit individuellement, même si la facture en contient 50+
+2. Traduire designation_raw (Català/Español) → designation_fr (Français professionnel BTP)
+3. Classifier famille parmi : Armature, Cloison, Climatisation, Plomberie, Électricité,
+   Menuiserie, Couverture, Carrelage, Isolation, Peinture, Outillage, Consommable, Autre
+4. Vérifier : prix_remise_ht = prix_brut_ht * (1 - remise_pct/100)
+5. Vérifier : prix_ttc_iva21 = prix_remise_ht * 1.21
+6. Si une vérification échoue → ajouter "confidence": "low" sur la ligne concernée
+7. Si un champ est illisible → mettre null, jamais inventer
 
-Réponds UNIQUEMENT en JSON strict avec cette structure :
+FORMAT JSON OBLIGATOIRE :
 {
-  "numero_facture": "...",
-  "date_facture": "JJ/MM/AAAA",
-  "fournisseur": "...",
+  "fournisseur": "string",
+  "numero_facture": "string",
+  "date_facture": "DD/MM/YYYY",
   "products": [
     {
-      "fournisseur": "...",
-      "designation_raw": "...",
-      "designation_fr": "...",
-      "famille": "...",
-      "unite": "...",
-      "prix_brut_ht": 0.0,
-      "remise_pct": null,
-      "prix_remise_ht": 0.0,
-      "prix_ttc_iva21": 0.0
+      "fournisseur": "string",
+      "designation_raw": "string",
+      "designation_fr": "string",
+      "famille": "string",
+      "unite": "string (sac|kg|m²|ml|unité|litre|rouleau)",
+      "prix_brut_ht": float,
+      "remise_pct": float,
+      "prix_remise_ht": float,
+      "prix_ttc_iva21": float,
+      "confidence": "high|low"
     }
   ]
 }
+
+Retourne UNIQUEMENT le JSON, sans markdown, sans commentaire.
 """
 
 
 class GeminiService:
-    """Multimodal invoice extraction via Gemini 2.0 Flash."""
+    """Multimodal invoice extraction via Gemini 3 Flash."""
 
     def __init__(self, config: AppConfig):
         self.config = config
@@ -69,7 +67,7 @@ class GeminiService:
 
         if config.has_gemini_key:
             self._client = genai.Client(api_key=config.gemini_api_key)
-            logger.info("Gemini client initialized (gemini-2.5-flash)")
+            logger.info("Gemini client initialized (gemini-3-flash)")
         else:
             logger.warning("Gemini API key missing — extraction disabled.")
 
@@ -97,11 +95,12 @@ class GeminiService:
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 response = self._client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=[EXTRACTION_PROMPT, file_part],
+                    model="gemini-3-flash",
+                    contents=[SYSTEM_PROMPT, file_part],
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
                         temperature=0.1,
+                        tools=[{"code_execution": {}}],
                     ),
                 )
 
@@ -139,16 +138,17 @@ class GeminiService:
             logger.error("Cannot extract: Gemini client not initialized.")
             return None
 
-        prompt = EXTRACTION_PROMPT + "\n\nVoici le texte OCR de la facture :\n\n" + ocr_text
+        prompt = SYSTEM_PROMPT + "\n\nVoici le texte OCR de la facture :\n\n" + ocr_text
 
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 response = self._client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-3-flash",
                     contents=[prompt],
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
                         temperature=0.1,
+                        tools=[{"code_execution": {}}],
                     ),
                 )
                 data = json.loads(response.text)

@@ -1,173 +1,199 @@
 """
-Thread-safe SQLite database manager — product catalogue with price upsert.
+PostgreSQL database manager using asyncpg — product catalogue and invoices.
+Aligned with original schema specifications.
 """
-import sqlite3
-import hashlib
-import threading
+import asyncpg
 import logging
-from datetime import datetime
-from typing import List, Dict, Optional, Tuple
-
-import pandas as pd
-
-from backend.schemas.invoice import Product
+from typing import Optional
+from backend.core.config import get_config
 
 logger = logging.getLogger(__name__)
 
+# Use DATABASE_URL from config (loads from .env)
+DATABASE_URL = get_config().database_url
 
 class DBManager:
-    """Product-oriented SQLite manager with price upsert logic."""
+    _pool: Optional[asyncpg.Pool] = None
 
-    def __init__(self, db_path: str = "data_cache.db"):
-        self.db_path = db_path
-        self._lock = threading.Lock()
-        self._conn: Optional[sqlite3.Connection] = None
-        self._ensure_tables()
+    @classmethod
+    async def get_pool(cls) -> asyncpg.Pool:
+        if cls._pool is None:
+            if not DATABASE_URL:
+                raise ValueError("DATABASE_URL is missing from environment.")
+            cls._pool = await asyncpg.create_pool(
+                DATABASE_URL,
+                min_size=2,
+                max_size=10,
+                command_timeout=30
+            )
+        return cls._pool
 
-    def _get_connection(self) -> sqlite3.Connection:
-        if self._conn is None:
-            self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA synchronous=NORMAL")
-        return self._conn
+    @classmethod
+    async def init_db(cls):
+        """Creates the necessary tables and extensions based on the original schema."""
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                # Extensions
+                await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+                await conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
 
-    def _ensure_tables(self):
-        with self._lock:
-            conn = self._get_connection()
-            with conn:
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS products (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        fournisseur TEXT NOT NULL,
+                # Table fournisseurs
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS fournisseurs (
+                        id SERIAL PRIMARY KEY,
+                        nom VARCHAR(200) UNIQUE NOT NULL,
+                        pays VARCHAR(50) DEFAULT 'ES',
+                        langue VARCHAR(20) DEFAULT 'ca',
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    );
+                """)
+
+                # Table produits
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS produits (
+                        id SERIAL PRIMARY KEY,
+                        fournisseur_id INTEGER REFERENCES fournisseurs(id),
+                        fournisseur VARCHAR(200) NOT NULL,
                         designation_raw TEXT NOT NULL,
-                        designation_fr TEXT,
-                        famille TEXT,
-                        unite TEXT,
-                        prix_brut_ht REAL DEFAULT 0.0,
-                        remise_pct REAL,
-                        prix_remise_ht REAL DEFAULT 0.0,
-                        prix_ttc_iva21 REAL DEFAULT 0.0,
-                        numero_facture TEXT,
-                        date_facture TEXT,
-                        updated_at TIMESTAMP NOT NULL,
+                        designation_fr TEXT NOT NULL,
+                        famille VARCHAR(100),
+                        unite VARCHAR(50),
+                        prix_brut_ht NUMERIC(10,4),
+                        remise_pct NUMERIC(5,2) DEFAULT 0,
+                        prix_remise_ht NUMERIC(10,4),
+                        prix_ttc_iva21 NUMERIC(10,4),
+                        numero_facture VARCHAR(100),
+                        date_facture DATE,
+                        confidence VARCHAR(10) DEFAULT 'high',
+                        embedding vector(768),
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ DEFAULT NOW(),
                         UNIQUE(designation_raw, fournisseur)
-                    )
+                    );
                 """)
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS invoices (
-                        file_hash TEXT PRIMARY KEY,
-                        filename TEXT NOT NULL,
-                        fournisseur TEXT,
-                        numero_facture TEXT,
-                        date_facture TEXT,
-                        nb_products INTEGER DEFAULT 0,
-                        processed_at TIMESTAMP NOT NULL
-                    )
+
+                # Table factures
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS factures (
+                        id SERIAL PRIMARY KEY,
+                        filename VARCHAR(500),
+                        storage_url TEXT,
+                        statut VARCHAR(20) DEFAULT 'traite',
+                        nb_produits_extraits INTEGER DEFAULT 0,
+                        cout_api_usd NUMERIC(8,6) DEFAULT 0,
+                        source VARCHAR(20) DEFAULT 'pc',
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    );
                 """)
-            logger.info(f"Database ready at {self.db_path}")
 
-    @staticmethod
-    def compute_file_hash(file_bytes: bytes) -> str:
-        return hashlib.sha256(file_bytes).hexdigest()
+                # Indexes
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_produits_famille ON produits(famille);")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_produits_fournisseur ON produits(fournisseur);")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_produits_designation_trgm ON produits USING GIN (designation_fr gin_trgm_ops);")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_produits_updated ON produits(updated_at DESC);")
 
-    def is_invoice_processed(self, file_hash: str) -> bool:
-        with self._lock:
-            conn = self._get_connection()
-            cur = conn.execute(
-                "SELECT 1 FROM invoices WHERE file_hash = ?", (file_hash,)
-            )
-            return cur.fetchone() is not None
+                logger.info("Base de données initialisée selon le schéma d'origine.")
 
-    def upsert_product(self, product: Product, numero_facture: str, date_facture: str) -> str:
+    @classmethod
+    async def upsert_product(cls, product: dict) -> bool:
         """
-        Insert or update a product. Returns 'added' or 'updated'.
+        Dénormalise le fournisseur et insère/met à jour le produit.
         """
-        with self._lock:
-            conn = self._get_connection()
-            cur = conn.execute(
-                "SELECT id FROM products WHERE designation_raw = ? AND fournisseur = ?",
-                (product.designation_raw, product.fournisseur),
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            # 1. Assurer l'existence du fournisseur
+            fournisseur_id = await conn.fetchval("""
+                INSERT INTO fournisseurs (nom) VALUES ($1)
+                ON CONFLICT (nom) DO UPDATE SET nom = EXCLUDED.nom
+                RETURNING id;
+            """, product['fournisseur'])
+
+            # Pour la clause ON CONFLICT DO UPDATE avec des variables explicites on parse une date valide ou null
+            date_facture = None
+            if product.get('date_facture'):
+                try:
+                    import datetime
+                    # Essai simple de conversion pour le type DATE postgres (ISO format)
+                    # Si c'est déjà propre du LLM, c'est bon. Sinon on met None pour éviter un crash.
+                    d = datetime.datetime.fromisoformat(str(product['date_facture']).replace('Z',''))
+                    date_facture = d.date()
+                except Exception:
+                    date_facture = None
+
+            # 2. Upsert du Produit
+            await conn.execute("""
+                INSERT INTO produits
+                    (fournisseur_id, fournisseur, designation_raw, designation_fr, famille, unite,
+                     prix_brut_ht, remise_pct, prix_remise_ht, prix_ttc_iva21,
+                     numero_facture, date_facture, confidence)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                ON CONFLICT (designation_raw, fournisseur)
+                DO UPDATE SET
+                    designation_fr = EXCLUDED.designation_fr,
+                    famille = EXCLUDED.famille,
+                    prix_brut_ht = EXCLUDED.prix_brut_ht,
+                    remise_pct = EXCLUDED.remise_pct,
+                    prix_remise_ht = EXCLUDED.prix_remise_ht,
+                    prix_ttc_iva21 = EXCLUDED.prix_ttc_iva21,
+                    updated_at = NOW()
+            """,
+            fournisseur_id,
+            product['fournisseur'], product['designation_raw'],
+            product['designation_fr'], product['famille'],
+            product['unite'], product['prix_brut_ht'],
+            product['remise_pct'], product['prix_remise_ht'],
+            product['prix_ttc_iva21'], product['numero_facture'],
+            date_facture, product.get('confidence', 'high'))
+        return True
+
+    @classmethod
+    async def get_catalogue(cls, famille=None, fournisseur=None, search=None) -> list:
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            query = """
+                SELECT * FROM produits
+                WHERE ($1::text IS NULL OR famille = $1)
+                AND ($2::text IS NULL OR fournisseur ILIKE $2)
+                AND ($3::text IS NULL OR designation_fr ILIKE $3)
+                ORDER BY updated_at DESC
+            """
+            rows = await conn.fetch(
+                query, famille,
+                f"%{fournisseur}%" if fournisseur else None,
+                f"%{search}%" if search else None
             )
-            existing = cur.fetchone()
-            now = datetime.now().isoformat()
+            return [dict(r) for r in rows]
 
-            if existing:
-                conn.execute(
-                    """UPDATE products SET
-                        designation_fr=?, famille=?, unite=?,
-                        prix_brut_ht=?, remise_pct=?, prix_remise_ht=?, prix_ttc_iva21=?,
-                        numero_facture=?, date_facture=?, updated_at=?
-                    WHERE id=?""",
-                    (
-                        product.designation_fr, product.famille, product.unite,
-                        product.prix_brut_ht, product.remise_pct,
-                        product.prix_remise_ht, product.prix_ttc_iva21,
-                        numero_facture, date_facture, now, existing[0],
-                    ),
-                )
-                conn.commit()
-                return "updated"
-            else:
-                conn.execute(
-                    """INSERT INTO products
-                        (fournisseur, designation_raw, designation_fr, famille, unite,
-                         prix_brut_ht, remise_pct, prix_remise_ht, prix_ttc_iva21,
-                         numero_facture, date_facture, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        product.fournisseur, product.designation_raw,
-                        product.designation_fr, product.famille, product.unite,
-                        product.prix_brut_ht, product.remise_pct,
-                        product.prix_remise_ht, product.prix_ttc_iva21,
-                        numero_facture, date_facture, now,
-                    ),
-                )
-                conn.commit()
-                return "added"
+    @classmethod
+    async def save_invoice(cls, file_hash: str, filename: str, nb_products: int):
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            # On stocke temporairement le hash dans la colonne filename (pour compatibilité)
+            # ou on pourrait rajouter la colonne, mais on se tient au schéma fourni par l'utilisateur.
+            await conn.execute("""
+                INSERT INTO factures (filename, nb_produits_extraits, statut)
+                VALUES ($1, $2, 'traite')
+            """, filename, nb_products)
 
-    def save_invoice(self, file_hash: str, filename: str, fournisseur: str,
-                     numero_facture: str, date_facture: str, nb_products: int):
-        with self._lock:
-            conn = self._get_connection()
-            conn.execute(
-                "INSERT OR REPLACE INTO invoices VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (file_hash, filename, fournisseur, numero_facture,
-                 date_facture, nb_products, datetime.now().isoformat()),
-            )
-            conn.commit()
-
-    def get_catalogue(self) -> pd.DataFrame:
-        with self._lock:
-            conn = self._get_connection()
-            return pd.read_sql_query(
-                "SELECT * FROM products ORDER BY famille, designation_fr", conn
-            )
-
-    def get_invoices(self) -> pd.DataFrame:
-        with self._lock:
-            conn = self._get_connection()
-            return pd.read_sql_query(
-                "SELECT * FROM invoices ORDER BY processed_at DESC", conn
-            )
-
-    def get_stats(self) -> Dict:
-        with self._lock:
-            conn = self._get_connection()
-            products = conn.execute("SELECT COUNT(*) FROM products").fetchone()[0]
-            invoices = conn.execute("SELECT COUNT(*) FROM invoices").fetchone()[0]
-            families = conn.execute("SELECT COUNT(DISTINCT famille) FROM products").fetchone()[0]
+    @classmethod
+    async def get_stats(cls) -> dict:
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            products = await conn.fetchval("SELECT COUNT(*) FROM produits;")
+            invoices = await conn.fetchval("SELECT COUNT(*) FROM factures;")
+            families = await conn.fetchval("SELECT COUNT(DISTINCT famille) FROM produits;")
             return {"products": products, "invoices": invoices, "families": families}
 
-    def reset_database(self):
-        with self._lock:
-            conn = self._get_connection()
-            with conn:
-                conn.execute("DELETE FROM products")
-                conn.execute("DELETE FROM invoices")
-            logger.warning("Database reset.")
+    @classmethod
+    async def get_invoices(cls) -> list:
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT * FROM factures ORDER BY created_at DESC")
+            return [dict(r) for r in rows]
 
-    def close(self):
-        with self._lock:
-            if self._conn:
-                self._conn.close()
-                self._conn = None
+    @classmethod
+    async def close(cls):
+        if cls._pool:
+            await cls._pool.close()
+            cls._pool = None

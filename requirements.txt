@@ -8,7 +8,10 @@ pydantic-settings>=2.0
 pillow>=10.0
 python-dotenv>=1.0
 requests
+opencv-python-headless>=4.8.0
 
+# Database
+asyncpg>=0.29.0
 
 # API REST (FastAPI)
 fastapi>=0.115
@@ -16,9 +19,6 @@ uvicorn[standard]>=0.30
 python-multipart>=0.0.12
 watchdog>=4.0.0
 protobuf>=4.0.0
-
-# Monitoring (optional — graceful if missing)
-# sentry-sdk[fastapi]>=2.0
 
 # Dev
 pytest>=8.0
