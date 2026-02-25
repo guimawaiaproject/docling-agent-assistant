@@ -30,6 +30,7 @@ from slowapi.util import get_remote_address
 
 from backend.core.config import Config
 from backend.core.db_manager import DBManager
+from backend.utils.serializers import serialize_row
 from backend.services.auth_service import create_token, verify_token, hash_password, verify_password, needs_rehash
 from backend.services.storage_service import StorageService
 from backend.core.orchestrator import Orchestrator
@@ -269,13 +270,8 @@ async def get_catalogue(
             cursor=cursor,
         )
 
-        # Sérialiser les dates et Decimal pour JSON
         for p in result["products"]:
-            for key, val in p.items():
-                if hasattr(val, "isoformat"):
-                    p[key] = val.isoformat()
-                elif hasattr(val, "__float__"):
-                    p[key] = float(val)
+            serialize_row(p)
 
         return result
 
@@ -337,11 +333,7 @@ async def get_history(limit: int = 50, _user: dict = Depends(get_current_user)):
     try:
         rows = await DBManager.get_factures_history(limit=min(limit, 200))
         for r in rows:
-            for k, v in r.items():
-                if hasattr(v, "isoformat"):
-                    r[k] = v.isoformat()
-                elif hasattr(v, "__float__"):
-                    r[k] = float(v)
+            serialize_row(r)
         return {"history": rows, "total": len(rows)}
     except Exception as e:
         logger.error("Erreur get_history", exc_info=True)
@@ -422,15 +414,7 @@ async def get_price_history(product_id: int, _user: dict = Depends(get_current_u
                 ORDER BY recorded_at DESC
                 LIMIT 20
             """, product_id)
-            result = []
-            for r in rows:
-                d = dict(r)
-                for k, v in d.items():
-                    if hasattr(v, "isoformat"):
-                        d[k] = v.isoformat()
-                    elif hasattr(v, "__float__"):
-                        d[k] = float(v)
-                result.append(d)
+            result = [serialize_row(dict(r)) for r in rows]
             return {"history": result, "product_id": product_id}
     except Exception as e:
         logger.error("Erreur get_price_history", exc_info=True)
@@ -450,20 +434,10 @@ async def compare_prices(search: str = "", with_history: bool = True, _user: dic
     try:
         rows = await DBManager.compare_prices(search.strip())
         for r in rows:
-            for k, v in list(r.items()):
-                if hasattr(v, "isoformat"):
-                    r[k] = v.isoformat()
-                elif hasattr(v, "__float__"):
-                    r[k] = float(v)
+            serialize_row(r)
             if with_history and r.get("id"):
                 hist = await DBManager.get_price_history_by_product_id(r["id"])
-                for h in hist:
-                    for k, v in list(h.items()):
-                        if hasattr(v, "isoformat"):
-                            h[k] = v.isoformat()
-                        elif hasattr(v, "__float__"):
-                            h[k] = float(v)
-                r["price_history"] = hist
+                r["price_history"] = [serialize_row(h) for h in hist]
         return {"results": rows, "search": search.strip(), "count": len(rows)}
     except Exception as e:
         logger.error("Erreur compare_prices", exc_info=True)
