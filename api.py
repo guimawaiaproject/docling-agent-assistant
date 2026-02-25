@@ -24,6 +24,9 @@ import sentry_sdk
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from backend.core.config import Config
 from backend.core.db_manager import DBManager
@@ -46,6 +49,10 @@ if _SENTRY_DSN:
         environment=os.getenv("ENVIRONMENT", "production"),
         release=f"docling-agent@3.0.0",
     )
+
+
+# ─── Rate limiter ─────────────────────────────────────────────────────────────
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ─── Auth dependencies ────────────────────────────────────────────────────────
@@ -104,6 +111,17 @@ app = FastAPI(
     description="Extraction IA de factures BTP (CA/ES/FR) — Neon PostgreSQL",
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def _rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Trop de tentatives. Réessayez dans quelques instants."},
+    )
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -451,7 +469,8 @@ async def compare_prices(search: str = "", with_history: bool = True, _user: dic
 # AUTH ENDPOINTS (Phase 4.3 - Multi-utilisateur)
 # ---------------------------------------------------------------------------
 @app.post("/api/v1/auth/register")
-async def register(email: str = Form(...), password: str = Form(...), name: str = Form(default="")):
+@limiter.limit("5/minute")
+async def register(request: Request, email: str = Form(...), password: str = Form(...), name: str = Form(default="")):
     """Inscription nouvel utilisateur."""
     pool = await DBManager.get_pool()
     async with pool.acquire() as conn:
@@ -468,7 +487,8 @@ async def register(email: str = Form(...), password: str = Form(...), name: str 
 
 
 @app.post("/api/v1/auth/login")
-async def login(email: str = Form(...), password: str = Form(...)):
+@limiter.limit("5/minute")
+async def login(request: Request, email: str = Form(...), password: str = Form(...)):
     """Connexion utilisateur."""
     pool = await DBManager.get_pool()
     async with pool.acquire() as conn:

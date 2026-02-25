@@ -30,6 +30,9 @@ PyJWT>=2.8.0
 # --- Monitoring ---
 sentry-sdk[fastapi]>=2.0.0
 
+# --- Rate limiting ---
+slowapi>=0.1.9
+
 # --- Config ---
 python-dotenv==1.0.1
 python-multipart==0.0.12
