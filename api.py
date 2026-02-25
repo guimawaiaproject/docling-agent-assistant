@@ -83,9 +83,34 @@ logger = logging.getLogger(__name__)
 # Sémaphore pour limiter les extractions Gemini concurrentes (évite rate limit)
 _extraction_semaphore = asyncio.Semaphore(3)
 
-# Circuit-breaker Gemini : après N erreurs consécutives, marquer le job en erreur et passer au suivant
-_GEMINI_CONSECUTIVE_ERRORS = 0
-_GEMINI_CIRCUIT_BREAKER_THRESHOLD = 5
+
+class _GeminiCircuitBreaker:
+    """Thread-safe circuit breaker for Gemini API calls."""
+
+    def __init__(self, threshold: int = 5):
+        self._threshold = threshold
+        self._consecutive_errors = 0
+        self._lock = asyncio.Lock()
+
+    async def record_success(self) -> None:
+        async with self._lock:
+            self._consecutive_errors = 0
+
+    async def record_failure(self) -> bool:
+        """Returns True if the circuit has tripped (threshold reached)."""
+        async with self._lock:
+            self._consecutive_errors += 1
+            if self._consecutive_errors >= self._threshold:
+                self._consecutive_errors = 0
+                return True
+            return False
+
+    @property
+    def threshold(self) -> int:
+        return self._threshold
+
+
+_gemini_cb = _GeminiCircuitBreaker(threshold=5)
 
 
 # ─── Lifespan ─────────────────────────────────────────────────────────────────
@@ -201,7 +226,6 @@ async def process_invoice(
 async def _run_extraction(
     job_id: str, file_bytes: bytes, filename: str, model: str, source: str
 ):
-    global _GEMINI_CONSECUTIVE_ERRORS
     async with _extraction_semaphore:
         try:
             result = await Orchestrator.process_file(
@@ -210,7 +234,7 @@ async def _run_extraction(
                 model_id=model,
                 source=source,
             )
-            _GEMINI_CONSECUTIVE_ERRORS = 0  # Succès : reset du compteur
+            await _gemini_cb.record_success()
             await DBManager.update_job(
                 job_id,
                 "completed" if result["success"] else "error",
@@ -218,17 +242,16 @@ async def _run_extraction(
                 error=result.get("error"),
             )
         except Exception as e:
-            _GEMINI_CONSECUTIVE_ERRORS += 1
-            circuit_triggered = _GEMINI_CONSECUTIVE_ERRORS >= _GEMINI_CIRCUIT_BREAKER_THRESHOLD
-            if circuit_triggered:
+            tripped = await _gemini_cb.record_failure()
+            if tripped:
                 logger.warning(
-                    f"Circuit-breaker Gemini : {_GEMINI_CONSECUTIVE_ERRORS} erreurs consécutives. "
-                    "Job marqué en erreur, les autres jobs continuent."
+                    "Circuit-breaker Gemini : %d erreurs consecutives. "
+                    "Job marque en erreur, les autres jobs continuent.",
+                    _gemini_cb.threshold,
                 )
-                _GEMINI_CONSECUTIVE_ERRORS = 0
             err_msg = str(e)
-            if circuit_triggered:
-                err_msg += f" (Gemini indisponible après {_GEMINI_CIRCUIT_BREAKER_THRESHOLD} échecs consécutifs)"
+            if tripped:
+                err_msg += f" (Gemini indisponible apres {_gemini_cb.threshold} echecs consecutifs)"
             await DBManager.update_job(
                 job_id, "error", result=None, error=err_msg
             )
