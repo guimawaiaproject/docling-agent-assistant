@@ -1,5 +1,4 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import axios from 'axios'
 import {
     Download, FileSpreadsheet, Filter,
     Loader2, Package, RefreshCw, Search, SortAsc, SortDesc, Users
@@ -7,6 +6,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
+import apiClient from '../services/apiClient'
 import { ENDPOINTS } from '../config/api'
 import CompareModal from '../components/CompareModal'
 import { FAMILLES_AVEC_TOUTES } from '../constants/categories'
@@ -139,8 +139,8 @@ export default function CataloguePage() {
     setLoading(true)
     try {
       const [catRes, fournRes] = await Promise.all([
-        axios.get(ENDPOINTS.catalogue),
-        axios.get(ENDPOINTS.fournisseurs),
+        apiClient.get(ENDPOINTS.catalogue),
+        apiClient.get(ENDPOINTS.fournisseurs),
       ])
       const products = Array.isArray(catRes.data) ? catRes.data : (catRes.data.products || [])
       setAllProducts(products)

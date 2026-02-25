@@ -1,9 +1,9 @@
-import axios from 'axios'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AlertCircle, CheckCircle2, Maximize2, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import apiClient from '../services/apiClient'
 import { ENDPOINTS } from '../config/api'
 import { useDoclingStore } from '../store/useStore'
 import { FAMILLES } from '../constants/categories'
@@ -27,7 +27,7 @@ export default function ValidationPage() {
   const handleValidate = async () => {
     setIsSaving(true)
     try {
-      await axios.post(ENDPOINTS.batch, { produits: products })
+      await apiClient.post(ENDPOINTS.batch, { produits: products })
       clearJob()
       if (navigator.vibrate) navigator.vibrate([100, 50, 100])
       toast.success(`${products.length} produits enregistr\u00e9s dans le catalogue`)
