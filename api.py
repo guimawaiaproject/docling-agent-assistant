@@ -19,6 +19,7 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
+import sentry_sdk
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -26,6 +27,24 @@ from fastapi.responses import JSONResponse
 from backend.core.config import Config
 from backend.core.db_manager import DBManager
 from backend.services.auth_service import create_token, verify_token, hash_password, verify_password
+from backend.services.storage_service import StorageService
+from backend.core.orchestrator import Orchestrator
+from backend.schemas.invoice import BatchSaveRequest
+from backend.services.watchdog_service import (
+    get_watchdog_status,
+    start_watchdog,
+    stop_watchdog,
+)
+
+# ─── Sentry — error monitoring ────────────────────────────────────────────────
+_SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+if _SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=_SENTRY_DSN,
+        traces_sample_rate=0.1,
+        environment=os.getenv("ENVIRONMENT", "production"),
+        release=f"docling-agent@3.0.0",
+    )
 
 
 # ─── Auth dependencies ────────────────────────────────────────────────────────
@@ -44,14 +63,6 @@ async def get_admin_user(user: dict = Depends(get_current_user)) -> dict:
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Accès admin requis")
     return user
-from backend.services.storage_service import StorageService
-from backend.core.orchestrator import Orchestrator
-from backend.schemas.invoice import BatchSaveRequest
-from backend.services.watchdog_service import (
-    get_watchdog_status,
-    start_watchdog,
-    stop_watchdog,
-)
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(

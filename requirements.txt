@@ -27,6 +27,9 @@ factur-x>=3.0.0
 # --- Auth ---
 PyJWT>=2.8.0
 
+# --- Monitoring ---
+sentry-sdk[fastapi]>=2.0.0
+
 # --- Config ---
 python-dotenv==1.0.1
 python-multipart==0.0.12
