@@ -30,7 +30,7 @@ from slowapi.util import get_remote_address
 
 from backend.core.config import Config
 from backend.core.db_manager import DBManager
-from backend.services.auth_service import create_token, verify_token, hash_password, verify_password
+from backend.services.auth_service import create_token, verify_token, hash_password, verify_password, needs_rehash
 from backend.services.storage_service import StorageService
 from backend.core.orchestrator import Orchestrator
 from backend.schemas.invoice import BatchSaveRequest
@@ -494,7 +494,7 @@ async def register(request: Request, email: str = Form(...), password: str = For
 @app.post("/api/v1/auth/login")
 @limiter.limit("5/minute")
 async def login(request: Request, email: str = Form(...), password: str = Form(...)):
-    """Connexion utilisateur."""
+    """Connexion utilisateur. Rehash silencieux PBKDF2 → Argon2id si nécessaire."""
     pool = await DBManager.get_pool()
     async with pool.acquire() as conn:
         user = await conn.fetchrow(
@@ -503,6 +503,15 @@ async def login(request: Request, email: str = Form(...), password: str = Form(.
         )
         if not user or not verify_password(password, user["password_hash"]):
             raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
+
+        if needs_rehash(user["password_hash"]):
+            new_hash = hash_password(password)
+            await conn.execute(
+                "UPDATE users SET password_hash = $1 WHERE id = $2",
+                new_hash, user["id"],
+            )
+            logger.info("Rehash PBKDF2→Argon2id pour user_id=%s", user["id"])
+
         token = create_token(user["id"], user["email"], user["role"])
         return {
             "token": token,

@@ -26,6 +26,7 @@ factur-x>=3.0.0
 
 # --- Auth ---
 PyJWT>=2.8.0
+argon2-cffi>=25.1.0
 
 # --- Monitoring ---
 sentry-sdk[fastapi]>=2.0.0

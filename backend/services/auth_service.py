@@ -1,7 +1,7 @@
 """
 AuthService - Docling Agent v4
-JWT authentication (PyJWT) with PBKDF2 password hashing.
-Progressive rehash to Argon2id planned in Phase 1.5.
+JWT authentication (PyJWT) with Argon2id password hashing.
+Backward-compatible: PBKDF2 hashes are verified and silently rehashed to Argon2id on login.
 """
 
 import hashlib
@@ -12,6 +12,8 @@ import time
 from typing import Optional
 
 import jwt
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,8 @@ if not JWT_SECRET:
     )
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY = int(os.getenv("JWT_EXPIRY_HOURS", "24")) * 3600
+
+_ph = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2)
 
 
 def create_token(user_id: int, email: str, role: str = "user") -> str:
@@ -53,14 +57,12 @@ def verify_token(token: str) -> Optional[dict]:
 
 
 def hash_password(password: str) -> str:
-    """Hash password with PBKDF2-SHA256 + random salt."""
-    salt = os.urandom(16)
-    hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000)
-    return f"{salt.hex()}:{hashed.hex()}"
+    """Hash password with Argon2id (default for all new accounts)."""
+    return _ph.hash(password)
 
 
-def verify_password(password: str, stored: str) -> bool:
-    """Verify a password against its stored PBKDF2 hash."""
+def _verify_pbkdf2(password: str, stored: str) -> bool:
+    """Verify a legacy PBKDF2-SHA256 hash (format: salt_hex:hash_hex)."""
     try:
         salt_hex, hash_hex = stored.split(":")
         salt = bytes.fromhex(salt_hex)
@@ -69,3 +71,23 @@ def verify_password(password: str, stored: str) -> bool:
         return hmac.compare_digest(actual, expected)
     except Exception:
         return False
+
+
+def verify_password(password: str, stored: str) -> bool:
+    """
+    Verify password against stored hash.
+    Supports both Argon2id ($argon2...) and legacy PBKDF2 (hex:hex) formats.
+    """
+    if stored.startswith("$argon2"):
+        try:
+            return _ph.verify(stored, password)
+        except VerifyMismatchError:
+            return False
+    return _verify_pbkdf2(password, stored)
+
+
+def needs_rehash(stored: str) -> bool:
+    """Returns True if the stored hash should be upgraded to Argon2id."""
+    if stored.startswith("$argon2"):
+        return _ph.check_needs_rehash(stored)
+    return True
