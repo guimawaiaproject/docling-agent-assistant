@@ -68,6 +68,11 @@ export default function ScanPage() {
   const inputRef        = useRef()
   const folderInputRef  = useRef()
   const isProcessingRef = useRef(false)
+  const abortRef        = useRef(null)
+
+  useEffect(() => {
+    return () => { abortRef.current?.abort() }
+  }, [])
 
   const batchQueue     = useDoclingStore(s => s.batchQueue)
   const addToQueue     = useDoclingStore(s => s.addToQueue)
@@ -214,6 +219,8 @@ export default function ScanPage() {
   })
 
   const processItem = async (item, pollIntervalMs = 5000) => {
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
     try {
       if (!navigator.onLine) {
         await enqueueUpload(item.file, selectedModel, getSource())
@@ -234,13 +241,13 @@ export default function ScanPage() {
       formData.append('source', getSource())
       updateItem(item.id, { status: 'processing', progress: 50 })
 
-      const { data: jobInfo } = await apiClient.post(ENDPOINTS.process, formData)
+      const { data: jobInfo } = await apiClient.post(ENDPOINTS.process, formData, { signal: ctrl.signal })
       if (!jobInfo.job_id) throw new Error('Pas de Job ID re\u00e7u')
 
       let attempts = 0
       const maxAttempts = 60
       while (attempts < maxAttempts) {
-        const { data: status } = await apiClient.get(ENDPOINTS.status(jobInfo.job_id))
+        const { data: status } = await apiClient.get(ENDPOINTS.status(jobInfo.job_id), { signal: ctrl.signal })
         if (status.status === 'completed') {
           updateItem(item.id, {
             status: 'done', progress: 100,
@@ -258,6 +265,7 @@ export default function ScanPage() {
       }
       throw new Error("Timeout : l'analyse prend trop de temps")
     } catch (err) {
+      if (err.name === 'CanceledError' || ctrl.signal.aborted) return
       updateItem(item.id, { status: 'error', progress: 0, error: err.message || 'Erreur inconnue' })
     }
   }
@@ -289,6 +297,10 @@ export default function ScanPage() {
     e.target.value = ''
     if (!file) return
 
+    abortRef.current?.abort()
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
+
     const fileUrl = URL.createObjectURL(file)
     setCameraOverlay({ previewUrl: fileUrl, step: 'upload', error: null })
     setJobStart('camera', fileUrl)
@@ -315,14 +327,14 @@ export default function ScanPage() {
       formData.append('model', selectedModel)
       formData.append('source', getSource())
 
-      const { data: jobInfo } = await apiClient.post(ENDPOINTS.process, formData)
+      const { data: jobInfo } = await apiClient.post(ENDPOINTS.process, formData, { signal: ctrl.signal })
       if (!jobInfo.job_id) throw new Error('Pas de Job ID re\u00e7u')
 
       setCameraOverlay(prev => ({ ...prev, step: 'validate' }))
 
       let attempts = 0
       while (attempts < 60) {
-        const { data: status } = await apiClient.get(ENDPOINTS.status(jobInfo.job_id))
+        const { data: status } = await apiClient.get(ENDPOINTS.status(jobInfo.job_id), { signal: ctrl.signal })
         if (status.status === 'completed') {
           setCameraOverlay(prev => ({ ...prev, step: 'done' }))
           setJobComplete(status.result.products)
@@ -338,6 +350,7 @@ export default function ScanPage() {
       }
       throw new Error('Timeout cam\u00e9ra')
     } catch (err) {
+      if (err.name === 'CanceledError' || ctrl.signal.aborted) return
       setCameraOverlay(prev => ({ ...prev, step: 'error', error: err.message }))
       toast.error(`Erreur : ${err.message}`)
       setTimeout(() => setCameraOverlay(null), 3000)
