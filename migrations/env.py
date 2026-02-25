@@ -5,12 +5,14 @@ Uses asyncpg via SQLAlchemy async engine (no extra sync driver needed).
 
 import asyncio
 import os
+import re
+import ssl as ssl_module
 import sys
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import pool
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import create_async_engine
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
@@ -25,19 +27,35 @@ if config.config_file_name is not None:
 target_metadata = None
 
 
-def _get_url() -> str:
-    """Read DATABASE_URL from env, convert to asyncpg dialect."""
+def _get_url_and_ssl() -> tuple[str, dict]:
+    """Read DATABASE_URL from env, return (asyncpg_url, connect_args)."""
     url = os.getenv("DATABASE_URL", "")
     if not url:
         raise RuntimeError("DATABASE_URL non définie — impossible de lancer les migrations.")
+
+    needs_ssl = "sslmode=require" in url or "sslmode=verify" in url
+
+    # Strip sslmode from URL — asyncpg doesn't accept it as a query param;
+    # we pass ssl via connect_args instead.
+    url = re.sub(r"[?&]sslmode=[^&]*", "", url)
+    url = url.replace("?&", "?").rstrip("?")
+
     if url.startswith("postgresql://"):
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    return url
+
+    connect_args: dict = {}
+    if needs_ssl:
+        ctx = ssl_module.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl_module.CERT_NONE
+        connect_args["ssl"] = ctx
+
+    return url, connect_args
 
 
 def run_migrations_offline() -> None:
     """Generate SQL script without connecting to the database."""
-    url = _get_url()
+    url, _ = _get_url_and_ssl()
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -55,13 +73,12 @@ def do_run_migrations(connection) -> None:
 
 
 async def run_async_migrations() -> None:
-    configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = _get_url()
+    url, connect_args = _get_url_and_ssl()
 
-    connectable = async_engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
+    connectable = create_async_engine(
+        url,
         poolclass=pool.NullPool,
+        connect_args=connect_args,
     )
 
     async with connectable.connect() as connection:
