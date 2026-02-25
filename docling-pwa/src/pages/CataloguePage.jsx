@@ -9,10 +9,7 @@ import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
 import { ENDPOINTS } from '../config/api'
 import CompareModal from '../components/CompareModal'
-
-const FAMILLES = ['Toutes','Armature','Cloison','Climatisation','Plomberie',
-  'Électricité','Menuiserie','Couverture','Carrelage','Isolation','Peinture',
-  'Outillage','Consommable','Autre']
+import { FAMILLES_AVEC_TOUTES } from '../constants/categories'
 
 function PriceBar({ products }) {
   const prices = products
@@ -272,7 +269,7 @@ export default function CataloguePage() {
                 text-xs text-slate-300 font-medium appearance-none
                 focus:outline-none focus:border-emerald-500/60 transition-all"
             >
-              {FAMILLES.map(f => <option key={f} value={f}>{f}</option>)}
+              {FAMILLES_AVEC_TOUTES.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
           {fournisseurs.length > 0 && (
