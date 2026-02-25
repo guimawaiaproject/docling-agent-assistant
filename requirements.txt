@@ -1,26 +1,37 @@
-# Core
-google-genai>=1.0
-pandas>=2.0
-streamlit==1.38.0
-openpyxl>=3.1
-pydantic>=2.0
-pydantic-settings>=2.0
-pillow>=10.0
-python-dotenv>=1.0
-requests
-opencv-python-headless>=4.8.0
+# --- Web Framework ---
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
 
-# Database
-asyncpg>=0.29.0
+# --- Base de donnees (Neon PostgreSQL) ---
+asyncpg>=0.30.0
 
-# API REST (FastAPI)
-fastapi>=0.115
-uvicorn[standard]>=0.30
-python-multipart>=0.0.12
-watchdog>=4.0.0
-protobuf>=4.0.0
+# --- IA - Google Gemini (SDK async natif) ---
+google-genai>=1.0.0
 
-# Dev
-pytest>=8.0
-pytest-mock>=3.0
-pytest-cov>=5.0
+# --- Vision / Image Processing ---
+opencv-python-headless==4.10.0.84
+Pillow==10.4.0
+
+# --- Validation donnees ---
+pydantic==2.9.2
+
+# --- Watchdog dossier magique ---
+watchdog==5.0.3
+
+# --- Cloud Storage (S3-compatible : Storj, R2, MinIO) ---
+boto3>=1.35.0
+
+# --- Factur-X / ZUGFeRD extraction ---
+factur-x>=3.0.0
+
+# --- Auth ---
+PyJWT>=2.8.0
+
+# --- Config ---
+python-dotenv==1.0.1
+python-multipart==0.0.12
+
+# --- Tests ---
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+requests>=2.28.0
