@@ -1,134 +1,452 @@
+import { useVirtualizer } from '@tanstack/react-virtual'
 import axios from 'axios'
-import { AnimatePresence, motion } from 'framer-motion'
-import { Filter, Loader2, Package, Search } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import {
+    Download, FileSpreadsheet, Filter,
+    Loader2, Package, RefreshCw, Search, SortAsc, SortDesc, Users
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
+import * as XLSX from 'xlsx'
 import { ENDPOINTS } from '../config/api'
+import CompareModal from '../components/CompareModal'
 
 const FAMILLES = ['Toutes','Armature','Cloison','Climatisation','Plomberie',
-  'Électricité','Menuiserie','Couverture','Carrelage','Isolation','Peinture','Outillage','Consommable','Autre']
+  'Électricité','Menuiserie','Couverture','Carrelage','Isolation','Peinture',
+  'Outillage','Consommable','Autre']
 
-export default function CataloguePage() {
-  const [products, setProducts] = useState([])
-  const [search, setSearch] = useState('')
-  const [famille, setFamille] = useState('Toutes')
-  const [loading, setLoading] = useState(true)
+function PriceBar({ products }) {
+  const prices = products
+    .map(p => parseFloat(p.prix_remise_ht) || 0)
+    .filter(v => v > 0)
 
-  useEffect(() => {
-    // Petit debounce manuel simple pour éviter de spammer l'API à chaque frappe
-    const delayDebounce = setTimeout(() => {
-      fetchCatalogue()
-    }, 300)
-    return () => clearTimeout(delayDebounce)
-  }, [search, famille])
+  if (prices.length === 0) return null
 
-  const fetchCatalogue = async () => {
-    setLoading(true)
-    try {
-      const params = {}
-      if (search) params.search = search
-      if (famille !== 'Toutes') params.famille = famille
+  const min = Math.min(...prices)
+  const max = Math.max(...prices)
+  const avg = prices.reduce((a, b) => a + b, 0) / prices.length
 
-      const { data } = await axios.get(ENDPOINTS.catalogue, { params })
-      setProducts(data.products || []) // data.products selon ton retour API (Pilier 2)
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
+  return (
+    <div className="flex items-center gap-3 px-1 py-2">
+      {[
+        { label: 'Min', val: min, color: 'text-emerald-400' },
+        { label: 'Moy', val: avg, color: 'text-blue-400' },
+        { label: 'Max', val: max, color: 'text-amber-400' },
+      ].map(({ label, val, color }) => (
+        <div key={label} className="flex items-center gap-1.5">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
+          <span className={`text-xs font-black ${color}`}>{val.toFixed(2)} €</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Colonnes du tableau desktop
+const COLUMNS = [
+  { key: 'designation_fr',  label: 'Désignation',   width: 'flex-[3]',   sortable: true },
+  { key: 'famille',         label: 'Famille',        width: 'flex-[1.5]', sortable: true },
+  { key: 'fournisseur',     label: 'Fournisseur',    width: 'flex-[1.5]', sortable: true },
+  { key: 'unite',           label: 'Unité',          width: 'w-14',       sortable: false },
+  { key: 'prix_brut_ht',    label: 'Brut HT',        width: 'w-20 text-right', sortable: true },
+  { key: 'remise_pct',      label: 'Remise',         width: 'w-16 text-right', sortable: false },
+  { key: 'prix_remise_ht',  label: 'Net HT',         width: 'w-20 text-right', sortable: true },
+  { key: 'prix_ttc_iva21',  label: 'TTC',            width: 'w-20 text-right', sortable: true },
+]
+
+// ─── Export CSV pur JS ──────────────────────────────────────────────────────
+function exportCSV(data) {
+  const headers = ['Désignation FR','Désignation RAW','Famille','Fournisseur','Unité',
+                   'Prix Brut HT','Remise %','Prix Net HT','Prix TTC IVA21%',
+                   'N° Facture','Date Facture']
+  const rows = data.map(p => [
+    p.designation_fr, p.designation_raw, p.famille, p.fournisseur, p.unite,
+    p.prix_brut_ht, p.remise_pct, p.prix_remise_ht, p.prix_ttc_iva21,
+    p.numero_facture, p.date_facture
+  ])
+
+  const csvContent = [headers, ...rows]
+    .map(row => row.map(cell => {
+      let s = String(cell ?? '')
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s
+      return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s
+    }).join(','))
+    .join('\n')
+
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `catalogue_btp_${new Date().toISOString().slice(0,10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// ─── Export Excel avec xlsx ─────────────────────────────────────────────────
+function exportExcel(data) {
+  const rows = data.map(p => ({
+    'Désignation FR':       p.designation_fr,
+    'Désignation RAW':      p.designation_raw,
+    'Famille':              p.famille,
+    'Fournisseur':          p.fournisseur,
+    'Unité':                p.unite,
+    'Prix Brut HT (€)':    parseFloat(p.prix_brut_ht) || 0,
+    'Remise (%)':           parseFloat(p.remise_pct) || 0,
+    'Prix Net HT (€)':     parseFloat(p.prix_remise_ht) || 0,
+    'Prix TTC IVA21% (€)': parseFloat(p.prix_ttc_iva21) || 0,
+    'N° Facture':           p.numero_facture,
+    'Date Facture':         p.date_facture,
+  }))
+
+  const ws = XLSX.utils.json_to_sheet(rows)
+
+  // Largeurs colonnes
+  ws['!cols'] = [
+    {wch:40},{wch:40},{wch:16},{wch:22},{wch:8},
+    {wch:14},{wch:10},{wch:14},{wch:14},{wch:16},{wch:14}
+  ]
+
+  // Style header (fond sombre) — xlsx vanilla
+  const range = XLSX.utils.decode_range(ws['!ref'])
+  for (let C = range.s.c; C <= range.e.c; C++) {
+    const cell = ws[XLSX.utils.encode_cell({ r: 0, c: C })]
+    if (cell) {
+      cell.s = {
+        font:    { bold: true, color: { rgb: 'FFFFFF' } },
+        fill:    { fgColor: { rgb: '0F172A' } },
+        alignment: { horizontal: 'center' }
+      }
     }
   }
 
-  return (
-    <div className="p-4 bg-slate-50 min-h-screen">
-      <div className="sticky top-0 bg-slate-50/90 backdrop-blur-md pt-2 pb-4 z-10">
-        <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2 mb-4">
-          <Package className="text-blue-600" />
-          Catalogue
-          <span className="text-sm font-medium bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full ml-auto">
-            {products.length} réf.
-          </span>
-        </h1>
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Catalogue BTP')
+  XLSX.writeFile(wb, `catalogue_btp_${new Date().toISOString().slice(0,10)}.xlsx`)
+}
 
+export default function CataloguePage() {
+  const [allProducts, setAllProducts]   = useState([])
+  const [fournisseurs, setFournisseurs] = useState([])
+  const [search,      setSearch]        = useState('')
+  const [famille,     setFamille]       = useState('Toutes')
+  const [fournisseur, setFournisseur]   = useState('Tous')
+  const [loading,     setLoading]       = useState(true)
+  const [sortKey,     setSortKey]       = useState('designation_fr')
+  const [sortDir,     setSortDir]       = useState('asc')
+  const [view,        setView]          = useState('cards')
+  const [compareOpen, setCompareOpen]   = useState(false)
+  const [compareSearch] = useState('')
+
+  const parentRef = useRef(null)
+
+  const fetchCatalogue = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [catRes, fournRes] = await Promise.all([
+        axios.get(ENDPOINTS.catalogue),
+        axios.get(ENDPOINTS.fournisseurs),
+      ])
+      const products = Array.isArray(catRes.data) ? catRes.data : (catRes.data.products || [])
+      setAllProducts(products)
+      setFournisseurs(fournRes.data.fournisseurs || [])
+    } catch {
+      toast.error('Impossible de charger le catalogue')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchCatalogue() }, [fetchCatalogue])
+
+  const filtered = useMemo(() => {
+    let out = [...allProducts]
+
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      out = out.filter(p =>
+        p.designation_fr?.toLowerCase().includes(q) ||
+        p.designation_raw?.toLowerCase().includes(q) ||
+        p.fournisseur?.toLowerCase().includes(q)
+      )
+    }
+
+    if (famille !== 'Toutes') {
+      out = out.filter(p => p.famille === famille)
+    }
+
+    if (fournisseur !== 'Tous') {
+      out = out.filter(p => p.fournisseur === fournisseur)
+    }
+
+    out.sort((a, b) => {
+      const va = a[sortKey] ?? ''
+      const vb = b[sortKey] ?? ''
+      const num = typeof va === 'number' || !isNaN(parseFloat(va))
+      if (num) {
+        return sortDir === 'asc'
+          ? parseFloat(va) - parseFloat(vb)
+          : parseFloat(vb) - parseFloat(va)
+      }
+      return sortDir === 'asc'
+        ? String(va).localeCompare(String(vb), 'fr')
+        : String(vb).localeCompare(String(va), 'fr')
+    })
+
+    return out
+  }, [allProducts, search, famille, fournisseur, sortKey, sortDir])
+
+  // ─── Virtualisation ─────────────────────────────────────────────
+  const virtualizer = useVirtualizer({
+    count:          filtered.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize:   () => view === 'table' ? 44 : 88,
+    overscan:       8,
+  })
+
+  const toggleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  const SortIcon = ({ col }) => {
+    if (!col.sortable) return null
+    if (sortKey !== col.key) return <SortAsc size={12} className="text-slate-600 ml-1" />
+    return sortDir === 'asc'
+      ? <SortAsc size={12} className="text-emerald-400 ml-1" />
+      : <SortDesc size={12} className="text-emerald-400 ml-1" />
+  }
+
+  return (
+    <div className="flex flex-col h-screen bg-slate-950">
+
+      {/* ── Header sticky ─────────────────────────────────────── */}
+      <div className="shrink-0 px-4 pt-4 pb-3 bg-slate-950 border-b border-slate-800">
+
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Package size={20} className="text-emerald-400" />
+            <h1 className="text-xl font-black text-slate-100">Catalogue</h1>
+            <span className="text-xs font-bold bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">
+              {filtered.length}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Toggle view */}
+            <button
+              onClick={() => setView(v => v === 'cards' ? 'table' : 'cards')}
+              className="text-[10px] font-bold uppercase tracking-wider text-slate-500
+                hover:text-slate-300 bg-slate-800 px-2 py-1.5 rounded-lg border border-slate-700 transition-colors"
+            >
+              {view === 'cards' ? 'Tableau' : 'Cartes'}
+            </button>
+
+            <button
+              onClick={fetchCatalogue}
+              className="p-2 text-slate-500 hover:text-slate-300 bg-slate-800 rounded-lg border border-slate-700 transition-colors"
+            >
+              <RefreshCw size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Recherche + Filtres */}
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Ciment, treillis..."
-              className="w-full border border-slate-200 bg-white rounded-xl py-3 pl-10 pr-4 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+              placeholder="Recherche..."
+              data-testid="catalogue-search"
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 pl-9 pr-4
+                text-sm text-slate-200 placeholder-slate-600
+                focus:outline-none focus:border-emerald-500/60 focus:bg-slate-800 transition-all"
             />
           </div>
-
-          <div className="relative w-1/3 min-w-[110px]">
-            <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+          <div className="relative w-24 shrink-0">
+            <Filter size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
             <select
               value={famille}
               onChange={e => setFamille(e.target.value)}
-              className="w-full border border-slate-200 bg-white rounded-xl py-3 pl-8 pr-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm appearance-none"
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 pl-7 pr-2
+                text-xs text-slate-300 font-medium appearance-none
+                focus:outline-none focus:border-emerald-500/60 transition-all"
             >
               {FAMILLES.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
+          {fournisseurs.length > 0 && (
+            <div className="relative w-24 shrink-0">
+              <Users size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <select
+                value={fournisseur}
+                onChange={e => setFournisseur(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 pl-7 pr-2
+                  text-xs text-slate-300 font-medium appearance-none
+                  focus:outline-none focus:border-emerald-500/60 transition-all"
+              >
+                <option value="Tous">Fournis.</option>
+                {fournisseurs.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <PriceBar products={filtered} />
+
+        {/* Export buttons */}
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={() => { exportExcel(filtered); toast.success('Export Excel téléchargé') }}
+            disabled={filtered.length === 0}
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-700/30 hover:bg-emerald-700/50
+              text-emerald-400 border border-emerald-700/40 rounded-xl text-xs font-bold
+              disabled:opacity-30 transition-colors"
+          >
+            <FileSpreadsheet size={13} />
+            Excel
+          </button>
+          <button
+            onClick={() => { exportCSV(filtered); toast.success('Export CSV téléchargé') }}
+            disabled={filtered.length === 0}
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-700/30 hover:bg-blue-700/50
+              text-blue-400 border border-blue-700/40 rounded-xl text-xs font-bold
+              disabled:opacity-30 transition-colors"
+          >
+            <Download size={13} />
+            CSV
+          </button>
+          <button
+            onClick={() => setCompareOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-purple-700/30 hover:bg-purple-700/50
+              text-purple-400 border border-purple-700/40 rounded-xl text-xs font-bold
+              transition-colors"
+          >
+            Comparer
+          </button>
         </div>
       </div>
 
-      <div className="mt-2 space-y-3 pb-8">
-        <AnimatePresence mode="popLayout">
-          {loading ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex justify-center pt-12"
-            >
-              <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-            </motion.div>
-          ) : products.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center pt-12 text-slate-400"
-            >
-              <Package size={48} className="mx-auto mb-3 opacity-20" />
-              <p>Aucun produit trouvé</p>
-            </motion.div>
-          ) : (
-            products.map((p, i) => (
-              <motion.div
-                layout
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, delay: Math.min(i * 0.03, 0.3) }}
-                key={p.id}
-                className="p-4 border border-slate-100 rounded-2xl bg-white shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)]"
-              >
-                <div className="flex justify-between items-start gap-3">
-                  <h3 className="font-bold text-slate-800 text-sm leading-snug flex-1">
-                    {p.designation_fr}
-                  </h3>
-                  <div className="text-right shrink-0">
-                    <span className="block text-green-600 font-black text-base whitespace-nowrap">
-                      {parseFloat(p.prix_remise_ht).toFixed(2)} €
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                      / {p.unite}
-                    </span>
-                  </div>
-                </div>
+      {/* ── Contenu virtualisé ────────────────────────────────── */}
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-slate-600 gap-3">
+          <Package size={48} className="opacity-20" />
+          <p className="text-sm font-medium">Aucun produit trouvé</p>
+        </div>
+      ) : (
+        <div ref={parentRef} className="flex-1 overflow-auto">
 
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-50">
-                  <span className="text-[10px] uppercase font-bold tracking-wider bg-slate-100 text-slate-600 px-2 py-1 rounded-md">
-                    {p.famille}
-                  </span>
-                  <span className="text-xs font-medium text-slate-400 truncate">
-                    {p.fournisseur}
-                  </span>
-                </div>
-              </motion.div>
-            ))
+          {/* ── VUE TABLE ────────────────────────────────────── */}
+          {view === 'table' && (
+            <div className="min-w-[800px]">
+              {/* Header colonnes */}
+              <div className="flex items-center px-3 py-2 bg-slate-900 border-b border-slate-800 sticky top-0 z-10">
+                {COLUMNS.map(col => (
+                  <button
+                    key={col.key}
+                    onClick={() => col.sortable && toggleSort(col.key)}
+                    className={`${col.width} flex items-center text-[10px] font-black uppercase tracking-widest
+                      text-slate-500 hover:text-slate-300 transition-colors ${col.sortable ? 'cursor-pointer' : 'cursor-default'}`}
+                  >
+                    {col.label}
+                    <SortIcon col={col} />
+                  </button>
+                ))}
+              </div>
+
+              {/* Rows virtualisées */}
+              <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+                {virtualizer.getVirtualItems().map(vRow => {
+                  const p = filtered[vRow.index]
+                  return (
+                    <div
+                      key={vRow.key}
+                      data-index={vRow.index}
+                      ref={virtualizer.measureElement}
+                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vRow.start}px)` }}
+                      className="flex items-center px-3 py-2.5 border-b border-slate-800/60
+                        hover:bg-slate-800/50 transition-colors text-xs"
+                    >
+                      <span className="flex-[3] text-slate-200 font-medium truncate pr-2">{p.designation_fr}</span>
+                      <span className="flex-[1.5] text-slate-400 truncate pr-2">{p.famille}</span>
+                      <span className="flex-[1.5] text-slate-500 truncate pr-2">{p.fournisseur}</span>
+                      <span className="w-14 text-slate-500">{p.unite}</span>
+                      <span className="w-20 text-right text-slate-400">{parseFloat(p.prix_brut_ht||0).toFixed(2)}</span>
+                      <span className="w-16 text-right text-amber-500/80">
+                        {p.remise_pct > 0 ? `-${p.remise_pct}%` : '—'}
+                      </span>
+                      <span className="w-20 text-right text-emerald-400 font-bold">{parseFloat(p.prix_remise_ht||0).toFixed(2)}</span>
+                      <span className="w-20 text-right text-slate-400">{parseFloat(p.prix_ttc_iva21||0).toFixed(2)}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           )}
-        </AnimatePresence>
-      </div>
+
+          {/* ── VUE CARTES (mobile-first) ─────────────────────── */}
+          {view === 'cards' && (
+            <div
+              style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}
+              className="px-4 pt-2"
+            >
+              {virtualizer.getVirtualItems().map(vRow => {
+                const p = filtered[vRow.index]
+                return (
+                  <div
+                    key={vRow.key}
+                    data-index={vRow.index}
+                    ref={virtualizer.measureElement}
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${vRow.start}px)` }}
+                    className="px-4 py-2"
+                  >
+                    <div className="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl
+                      hover:border-slate-700 transition-colors">
+                      <div className="flex justify-between items-start gap-2">
+                        <p className="font-bold text-slate-200 text-sm leading-snug flex-1">{p.designation_fr}</p>
+                        <div className="text-right shrink-0">
+                          <span className="block text-emerald-400 font-black text-base">
+                            {parseFloat(p.prix_remise_ht||0).toFixed(2)} €
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-bold">/{p.unite}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-400 px-2 py-1 rounded-md">
+                          {p.famille}
+                        </span>
+                        <span className="text-xs text-slate-600 font-medium">{p.fournisseur}</span>
+
+                        {p.remise_pct > 0 && (
+                          <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 px-2 py-1 rounded-md ml-auto">
+                            -{p.remise_pct}%
+                          </span>
+                        )}
+
+                        {p.numero_facture && (
+                          <span className="text-[10px] text-slate-600 truncate max-w-[90px]">
+                            #{p.numero_facture}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+      <CompareModal
+        isOpen={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        initialSearch={compareSearch}
+      />
     </div>
   )
 }
