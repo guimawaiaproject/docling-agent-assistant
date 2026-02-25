@@ -80,7 +80,21 @@ export default function ScanPage() {
 
   // Camera overlay state
   const [cameraOverlay, setCameraOverlay] = useState(null)
-  // { previewUrl, step: 'upload'|'ai'|'validate'|'save'|'done'|'error', error? }
+  const prevPreviewRef = useRef(null)
+
+  useEffect(() => {
+    const url = cameraOverlay?.previewUrl
+    if (prevPreviewRef.current && prevPreviewRef.current !== url) {
+      URL.revokeObjectURL(prevPreviewRef.current)
+    }
+    prevPreviewRef.current = url || null
+    return () => {
+      if (prevPreviewRef.current) {
+        URL.revokeObjectURL(prevPreviewRef.current)
+        prevPreviewRef.current = null
+      }
+    }
+  }, [cameraOverlay?.previewUrl])
 
   // Offline sync state
   const [pendingCount, setPendingCount] = useState(0)
