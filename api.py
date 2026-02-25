@@ -432,13 +432,16 @@ async def compare_prices(search: str = "", with_history: bool = True, _user: dic
     if not search or len(search.strip()) < 2:
         raise HTTPException(status_code=400, detail="Recherche trop courte (min 2 car.)")
     try:
-        rows = await DBManager.compare_prices(search.strip())
+        term = search.strip()
+        if with_history:
+            rows = await DBManager.compare_prices_with_history(term)
+        else:
+            rows = await DBManager.compare_prices(term)
         for r in rows:
             serialize_row(r)
-            if with_history and r.get("id"):
-                hist = await DBManager.get_price_history_by_product_id(r["id"])
-                r["price_history"] = [serialize_row(h) for h in hist]
-        return {"results": rows, "search": search.strip(), "count": len(rows)}
+            for h in r.get("price_history", []):
+                serialize_row(h)
+        return {"results": rows, "search": term, "count": len(rows)}
     except Exception as e:
         logger.error("Erreur compare_prices", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")

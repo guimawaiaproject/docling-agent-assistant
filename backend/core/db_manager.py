@@ -1,16 +1,85 @@
 """
-PostgreSQL database manager using asyncpg — product catalogue and invoices.
-Aligned with original schema specifications.
+DBManager — Docling Agent v3
+PostgreSQL Neon via asyncpg
+- Cursor-based pagination (plus rapide et stable que OFFSET)
+- Recherche floue pg_trgm sur designation_raw (CA/ES) + designation_fr (FR)
+- Upsert anti-doublon sur (designation_raw, fournisseur)
+- Thread-safe via connection pool (min 2, max 10)
+
+Neon 2026 : utiliser l'URL avec -pooler (ex: ep-xxx-pooler.region.neon.tech)
+pour PgBouncer → jusqu'à 10k connexions, meilleure résilience.
 """
-import asyncpg
+
+import json
 import logging
-from typing import Optional
-from backend.core.config import get_config
+import os
+from datetime import date, datetime
+from typing import Any, Optional
+
+import asyncpg
 
 logger = logging.getLogger(__name__)
 
-# Use DATABASE_URL from config (loads from .env)
-DATABASE_URL = get_config().database_url
+DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+
+_UPSERT_SQL = """
+    INSERT INTO produits (
+        fournisseur, designation_raw, designation_fr,
+        famille, unite,
+        prix_brut_ht, remise_pct, prix_remise_ht, prix_ttc_iva21,
+        numero_facture, date_facture, confidence, source
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+    ON CONFLICT (designation_raw, fournisseur)
+    DO UPDATE SET
+        designation_fr = EXCLUDED.designation_fr,
+        famille        = EXCLUDED.famille,
+        prix_brut_ht   = EXCLUDED.prix_brut_ht,
+        remise_pct     = EXCLUDED.remise_pct,
+        prix_remise_ht = EXCLUDED.prix_remise_ht,
+        prix_ttc_iva21 = EXCLUDED.prix_ttc_iva21,
+        numero_facture = EXCLUDED.numero_facture,
+        date_facture   = EXCLUDED.date_facture,
+        confidence     = EXCLUDED.confidence,
+        source         = EXCLUDED.source,
+        updated_at     = NOW()
+"""
+
+
+def _parse_date(val) -> date | None:
+    if val is None:
+        return None
+    if isinstance(val, datetime):
+        return val.date()
+    if isinstance(val, date):
+        return val
+    s = str(val).strip()
+    if not s:
+        return None
+    for fmt in ("%d/%m/%Y", "%d/%m/%y", "%Y-%m-%d", "%d-%m-%Y", "%d.%m.%Y"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _upsert_params(product: dict, source: str) -> tuple:
+    return (
+        product.get("fournisseur", ""),
+        product.get("designation_raw", ""),
+        product.get("designation_fr", ""),
+        product.get("famille", "Autre"),
+        product.get("unite", "unit\u00e9"),
+        float(product.get("prix_brut_ht") or 0),
+        float(product.get("remise_pct") or 0),
+        float(product.get("prix_remise_ht") or 0),
+        float(product.get("prix_ttc_iva21") or 0),
+        product.get("numero_facture"),
+        _parse_date(product.get("date_facture")),
+        product.get("confidence", "high"),
+        source,
+    )
+
 
 class DBManager:
     _pool: Optional[asyncpg.Pool] = None
@@ -19,181 +88,447 @@ class DBManager:
     async def get_pool(cls) -> asyncpg.Pool:
         if cls._pool is None:
             if not DATABASE_URL:
-                raise ValueError("DATABASE_URL is missing from environment.")
+                raise RuntimeError("DATABASE_URL non d\u00e9finie dans .env")
             cls._pool = await asyncpg.create_pool(
                 DATABASE_URL,
                 min_size=2,
                 max_size=10,
-                command_timeout=30
+                command_timeout=30,
+                ssl="require",
             )
+            logger.info("Pool asyncpg connect\u00e9 \u00e0 Neon")
         return cls._pool
 
     @classmethod
-    async def init_db(cls):
-        """Creates the necessary tables and extensions based on the original schema."""
-        pool = await cls.get_pool()
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                # Extensions
-                await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-                await conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
-
-                # Table fournisseurs
-                await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS fournisseurs (
-                        id SERIAL PRIMARY KEY,
-                        nom VARCHAR(200) UNIQUE NOT NULL,
-                        pays VARCHAR(50) DEFAULT 'ES',
-                        langue VARCHAR(20) DEFAULT 'ca',
-                        created_at TIMESTAMPTZ DEFAULT NOW()
-                    );
-                """)
-
-                # Table produits
-                await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS produits (
-                        id SERIAL PRIMARY KEY,
-                        fournisseur_id INTEGER REFERENCES fournisseurs(id),
-                        fournisseur VARCHAR(200) NOT NULL,
-                        designation_raw TEXT NOT NULL,
-                        designation_fr TEXT NOT NULL,
-                        famille VARCHAR(100),
-                        unite VARCHAR(50),
-                        prix_brut_ht NUMERIC(10,4),
-                        remise_pct NUMERIC(5,2) DEFAULT 0,
-                        prix_remise_ht NUMERIC(10,4),
-                        prix_ttc_iva21 NUMERIC(10,4),
-                        numero_facture VARCHAR(100),
-                        date_facture DATE,
-                        confidence VARCHAR(10) DEFAULT 'high',
-                        embedding vector(768),
-                        created_at TIMESTAMPTZ DEFAULT NOW(),
-                        updated_at TIMESTAMPTZ DEFAULT NOW(),
-                        UNIQUE(designation_raw, fournisseur)
-                    );
-                """)
-
-                # Table factures
-                await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS factures (
-                        id SERIAL PRIMARY KEY,
-                        filename VARCHAR(500),
-                        storage_url TEXT,
-                        statut VARCHAR(20) DEFAULT 'traite',
-                        nb_produits_extraits INTEGER DEFAULT 0,
-                        cout_api_usd NUMERIC(8,6) DEFAULT 0,
-                        source VARCHAR(20) DEFAULT 'pc',
-                        created_at TIMESTAMPTZ DEFAULT NOW()
-                    );
-                """)
-
-                # Indexes
-                await conn.execute("CREATE INDEX IF NOT EXISTS idx_produits_famille ON produits(famille);")
-                await conn.execute("CREATE INDEX IF NOT EXISTS idx_produits_fournisseur ON produits(fournisseur);")
-                await conn.execute("CREATE INDEX IF NOT EXISTS idx_produits_designation_trgm ON produits USING GIN (designation_fr gin_trgm_ops);")
-                await conn.execute("CREATE INDEX IF NOT EXISTS idx_produits_updated ON produits(updated_at DESC);")
-
-                logger.info("Base de données initialisée selon le schéma d'origine.")
+    async def close_pool(cls) -> None:
+        if cls._pool:
+            await cls._pool.close()
+            cls._pool = None
 
     @classmethod
-    async def upsert_product(cls, product: dict) -> bool:
-        """
-        Dénormalise le fournisseur et insère/met à jour le produit.
-        """
+    async def run_migrations(cls) -> None:
+        """Ajoute les colonnes/tables manquantes sans casser l'existant."""
         pool = await cls.get_pool()
         async with pool.acquire() as conn:
-            # 1. Assurer l'existence du fournisseur
-            fournisseur_id = await conn.fetchval("""
-                INSERT INTO fournisseurs (nom) VALUES ($1)
-                ON CONFLICT (nom) DO UPDATE SET nom = EXCLUDED.nom
-                RETURNING id;
-            """, product['fournisseur'])
-
-            # Pour la clause ON CONFLICT DO UPDATE avec des variables explicites on parse une date valide ou null
-            date_facture = None
-            if product.get('date_facture'):
-                try:
-                    import datetime
-                    # Essai simple de conversion pour le type DATE postgres (ISO format)
-                    # Si c'est déjà propre du LLM, c'est bon. Sinon on met None pour éviter un crash.
-                    d = datetime.datetime.fromisoformat(str(product['date_facture']).replace('Z',''))
-                    date_facture = d.date()
-                except Exception:
-                    date_facture = None
-
-            # 2. Upsert du Produit
             await conn.execute("""
-                INSERT INTO produits
-                    (fournisseur_id, fournisseur, designation_raw, designation_fr, famille, unite,
-                     prix_brut_ht, remise_pct, prix_remise_ht, prix_ttc_iva21,
-                     numero_facture, date_facture, confidence)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-                ON CONFLICT (designation_raw, fournisseur)
-                DO UPDATE SET
-                    designation_fr = EXCLUDED.designation_fr,
-                    famille = EXCLUDED.famille,
-                    prix_brut_ht = EXCLUDED.prix_brut_ht,
-                    remise_pct = EXCLUDED.remise_pct,
-                    prix_remise_ht = EXCLUDED.prix_remise_ht,
-                    prix_ttc_iva21 = EXCLUDED.prix_ttc_iva21,
-                    updated_at = NOW()
-            """,
-            fournisseur_id,
-            product['fournisseur'], product['designation_raw'],
-            product['designation_fr'], product['famille'],
-            product['unite'], product['prix_brut_ht'],
-            product['remise_pct'], product['prix_remise_ht'],
-            product['prix_ttc_iva21'], product['numero_facture'],
-            date_facture, product.get('confidence', 'high'))
+                ALTER TABLE factures ADD COLUMN IF NOT EXISTS pdf_url TEXT;
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS prix_historique (
+                    id          SERIAL PRIMARY KEY,
+                    produit_id  INTEGER REFERENCES produits(id) ON DELETE CASCADE,
+                    fournisseur VARCHAR(200) NOT NULL,
+                    designation_fr TEXT NOT NULL,
+                    prix_ht     NUMERIC(10,4) NOT NULL,
+                    prix_brut   NUMERIC(10,4),
+                    remise_pct  NUMERIC(5,2) DEFAULT 0,
+                    facture_id  INTEGER REFERENCES factures(id) ON DELETE SET NULL,
+                    recorded_at TIMESTAMPTZ DEFAULT NOW()
+                );
+            """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_prixhist_produit
+                    ON prix_historique(produit_id, recorded_at DESC);
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id            SERIAL PRIMARY KEY,
+                    email         VARCHAR(255) UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    display_name  VARCHAR(200),
+                    role          VARCHAR(20) DEFAULT 'user',
+                    created_at    TIMESTAMPTZ DEFAULT NOW()
+                );
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS jobs (
+                    job_id     UUID PRIMARY KEY,
+                    status     VARCHAR(20) DEFAULT 'processing',
+                    result     JSONB,
+                    error      TEXT,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                );
+            """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC);
+            """)
+            logger.info("Migrations auto OK")
+
+    @classmethod
+    async def upsert_product(cls, product: dict, source: str = "pc") -> bool:
+        """Upsert un seul produit. D\u00e9l\u00e8gue au batch."""
+        await cls.upsert_products_batch([product], source=source)
         return True
 
     @classmethod
-    async def get_catalogue(cls, famille=None, fournisseur=None, search=None) -> list:
+    async def upsert_products_batch(
+        cls, products: list[dict], source: str = "pc"
+    ) -> int:
+        """Ins\u00e8re/met \u00e0 jour une liste de produits dans une transaction."""
         pool = await cls.get_pool()
+        count = 0
         async with pool.acquire() as conn:
-            query = """
-                SELECT * FROM produits
-                WHERE ($1::text IS NULL OR famille = $1)
-                AND ($2::text IS NULL OR fournisseur ILIKE $2)
-                AND ($3::text IS NULL OR designation_fr ILIKE $3)
-                ORDER BY updated_at DESC
-            """
-            rows = await conn.fetch(
-                query, famille,
-                f"%{fournisseur}%" if fournisseur else None,
-                f"%{search}%" if search else None
-            )
-            return [dict(r) for r in rows]
+            async with conn.transaction():
+                for product in products:
+                    try:
+                        result = await conn.fetchrow(
+                            _UPSERT_SQL + " RETURNING id",
+                            *_upsert_params(product, source)
+                        )
+                        count += 1
+                        if result and float(product.get("prix_remise_ht") or 0) > 0:
+                            try:
+                                await conn.execute("""
+                                    INSERT INTO prix_historique
+                                        (produit_id, fournisseur, designation_fr, prix_ht, prix_brut, remise_pct)
+                                    VALUES ($1, $2, $3, $4, $5, $6)
+                                """,
+                                    result["id"],
+                                    product.get("fournisseur", ""),
+                                    product.get("designation_fr", ""),
+                                    float(product.get("prix_remise_ht") or 0),
+                                    float(product.get("prix_brut_ht") or 0),
+                                    float(product.get("remise_pct") or 0),
+                                )
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        logger.warning(f"Upsert ignor\u00e9 pour {product.get('designation_raw')}: {e}")
+        return count
 
     @classmethod
-    async def save_invoice(cls, file_hash: str, filename: str, nb_products: int):
+    async def get_catalogue(
+        cls,
+        famille:     Optional[str] = None,
+        fournisseur: Optional[str] = None,
+        search:      Optional[str] = None,
+        limit:       int = 50,
+        cursor:      Optional[str] = None,
+    ) -> dict[str, Any]:
         pool = await cls.get_pool()
         async with pool.acquire() as conn:
-            # On stocke temporairement le hash dans la colonne filename (pour compatibilité)
-            # ou on pourrait rajouter la colonne, mais on se tient au schéma fourni par l'utilisateur.
-            await conn.execute("""
-                INSERT INTO factures (filename, nb_produits_extraits, statut)
-                VALUES ($1, $2, 'traite')
-            """, filename, nb_products)
+
+            conditions = []
+            params: list[Any] = []
+            idx = 1
+
+            if cursor:
+                conditions.append(f"updated_at < ${idx}::timestamptz")
+                params.append(cursor)
+                idx += 1
+
+            if famille and famille != "Toutes":
+                conditions.append(f"famille = ${idx}")
+                params.append(famille)
+                idx += 1
+
+            if fournisseur:
+                conditions.append(f"fournisseur ILIKE ${idx}")
+                params.append(f"%{fournisseur}%")
+                idx += 1
+
+            if search and search.strip():
+                s = search.strip()
+                conditions.append(f"""(
+                    designation_raw ILIKE ${idx}
+                    OR designation_fr   ILIKE ${idx}
+                    OR fournisseur      ILIKE ${idx}
+                    OR similarity(designation_raw, ${idx+1}) > 0.2
+                    OR similarity(designation_fr,  ${idx+1}) > 0.2
+                )""")
+                params.append(f"%{s}%")
+                params.append(s)
+                idx += 2
+
+            where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+            score_col = "0 AS score"
+            order_clause = "updated_at DESC"
+            if search and search.strip():
+                s = search.strip()
+                score_col = f"""GREATEST(
+                    similarity(designation_raw, ${idx}),
+                    similarity(designation_fr,  ${idx})
+                ) AS score"""
+                params.append(s)
+                idx += 1
+                order_clause = "score DESC, updated_at DESC"
+
+            limit_param = idx
+            params.append(limit + 1)
+            idx += 1
+
+            query = f"""
+                SELECT
+                    id, fournisseur, designation_raw, designation_fr,
+                    famille, unite,
+                    prix_brut_ht, remise_pct, prix_remise_ht, prix_ttc_iva21,
+                    numero_facture, date_facture, confidence, source,
+                    updated_at,
+                    {score_col}
+                FROM produits
+                {where}
+                ORDER BY {order_clause}
+                LIMIT ${limit_param}
+            """
+
+            rows = await conn.fetch(query, *params)
+
+            has_more    = len(rows) > limit
+            items       = rows[:limit]
+            next_cursor = items[-1]["updated_at"].isoformat() if has_more and items else None
+
+            count_where_conditions = []
+            count_params_clean: list[Any] = []
+            cidx = 1
+            if famille and famille != "Toutes":
+                count_where_conditions.append(f"famille = ${cidx}")
+                count_params_clean.append(famille)
+                cidx += 1
+            if fournisseur:
+                count_where_conditions.append(f"fournisseur ILIKE ${cidx}")
+                count_params_clean.append(f"%{fournisseur}%")
+                cidx += 1
+            if search and search.strip():
+                count_where_conditions.append(
+                    f"(designation_raw ILIKE ${cidx} OR designation_fr ILIKE ${cidx})"
+                )
+                count_params_clean.append(f"%{search.strip()}%")
+                cidx += 1
+
+            count_where = ("WHERE " + " AND ".join(count_where_conditions)) if count_where_conditions else ""
+            total = await conn.fetchval(f"SELECT COUNT(*) FROM produits {count_where}", *count_params_clean)
+
+            return {
+                "products":    [dict(r) for r in items],
+                "next_cursor": next_cursor,
+                "has_more":    has_more,
+                "total":       total,
+            }
 
     @classmethod
     async def get_stats(cls) -> dict:
         pool = await cls.get_pool()
         async with pool.acquire() as conn:
-            products = await conn.fetchval("SELECT COUNT(*) FROM produits;")
-            invoices = await conn.fetchval("SELECT COUNT(*) FROM factures;")
-            families = await conn.fetchval("SELECT COUNT(DISTINCT famille) FROM produits;")
-            return {"products": products, "invoices": invoices, "families": families}
+            stats = await conn.fetchrow("""
+                SELECT
+                    COUNT(*)                                    AS total_produits,
+                    COUNT(DISTINCT fournisseur)                 AS total_fournisseurs,
+                    COUNT(DISTINCT famille)                     AS total_familles,
+                    COUNT(*) FILTER (WHERE confidence = 'low')  AS low_confidence,
+                    COUNT(*) FILTER (WHERE source = 'mobile')   AS depuis_mobile,
+                    COUNT(*) FILTER (WHERE updated_at > NOW() - INTERVAL '7 days') AS cette_semaine
+                FROM produits
+            """)
+
+            familles = await conn.fetch("""
+                SELECT famille, COUNT(*) AS nb
+                FROM produits
+                WHERE famille IS NOT NULL
+                GROUP BY famille
+                ORDER BY nb DESC
+            """)
+
+            return {
+                **dict(stats),
+                "familles": [dict(f) for f in familles]
+            }
 
     @classmethod
-    async def get_invoices(cls) -> list:
+    async def get_factures_history(cls, limit: int = 50) -> list[dict]:
         pool = await cls.get_pool()
         async with pool.acquire() as conn:
-            rows = await conn.fetch("SELECT * FROM factures ORDER BY created_at DESC")
+            rows = await conn.fetch("""
+                SELECT id, filename, statut, nb_produits_extraits,
+                       cout_api_usd, modele_ia, source, pdf_url, created_at
+                FROM factures
+                ORDER BY created_at DESC
+                LIMIT $1
+            """, limit)
             return [dict(r) for r in rows]
 
     @classmethod
-    async def close(cls):
-        if cls._pool:
-            await cls._pool.close()
-            cls._pool = None
+    async def log_facture(
+        cls,
+        filename:    str,
+        statut:      str,
+        nb_produits: int,
+        cout_usd:    float,
+        modele_ia:   str,
+        source:      str = "pc",
+        pdf_url:     str = None,
+    ) -> int:
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                INSERT INTO factures
+                    (filename, statut, nb_produits_extraits, cout_api_usd, modele_ia, source, pdf_url)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING id
+            """, filename, statut, nb_produits, cout_usd, modele_ia, source, pdf_url)
+            return row["id"]
+
+    @classmethod
+    async def create_job(cls, job_id: str, status: str = "processing") -> None:
+        """Crée un job en base pour persistance."""
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO jobs (job_id, status)
+                VALUES ($1::uuid, $2)
+            """, job_id, status)
+
+    @classmethod
+    async def update_job(
+        cls,
+        job_id: str,
+        status: str,
+        result: dict | None = None,
+        error: str | None = None,
+    ) -> None:
+        """Met à jour le statut et le résultat d'un job."""
+        pool = await cls.get_pool()
+        result_json = json.dumps(result) if result is not None else None
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE jobs
+                SET status = $2, result = $3::jsonb, error = $4, updated_at = NOW()
+                WHERE job_id = $1::uuid
+            """, job_id, status, result_json, error)
+
+    @classmethod
+    async def get_job(cls, job_id: str) -> dict | None:
+        """Récupère un job par son id. Retourne None si introuvable."""
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                SELECT status, result, error, created_at, updated_at
+                FROM jobs
+                WHERE job_id = $1::uuid
+            """, job_id)
+            if not row:
+                return None
+            result = row["result"]
+            if isinstance(result, str):
+                result = json.loads(result) if result else None
+            return {
+                "status": row["status"],
+                "result": result,
+                "error": row["error"],
+            }
+
+    @classmethod
+    async def truncate_products(cls) -> int:
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("TRUNCATE TABLE produits RESTART IDENTITY")
+            return 0
+
+    @classmethod
+    async def get_fournisseurs(cls) -> list[str]:
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT DISTINCT fournisseur FROM produits ORDER BY fournisseur"
+            )
+            return [r["fournisseur"] for r in rows]
+    @classmethod
+    async def compare_prices(cls, search: str) -> list[dict]:
+        """Compare les prix d'un produit entre fournisseurs."""
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT
+                    id,
+                    fournisseur,
+                    designation_fr,
+                    prix_remise_ht,
+                    prix_brut_ht,
+                    remise_pct,
+                    unite,
+                    numero_facture,
+                    date_facture,
+                    updated_at
+                FROM produits
+                WHERE designation_fr ILIKE $1
+                   OR designation_raw ILIKE $1
+                   OR similarity(designation_fr, $2) > 0.3
+                ORDER BY prix_remise_ht ASC
+                LIMIT 20
+            """, f"%{search}%", search)
+            return [dict(r) for r in rows]
+
+    @classmethod
+    async def get_price_history_by_product_id(cls, product_id: int) -> list[dict]:
+        """Historique de prix depuis prix_historique pour un produit."""
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT prix_ht, prix_brut, remise_pct, recorded_at
+                FROM prix_historique
+                WHERE produit_id = $1
+                ORDER BY recorded_at ASC
+                LIMIT 20
+            """, product_id)
+            return [dict(r) for r in rows]
+
+    @classmethod
+    async def compare_prices_with_history(cls, search: str) -> list[dict]:
+        """
+        Compare prices + batch-load history in 2 queries (fixes N+1).
+        Returns products with an embedded 'price_history' list.
+        """
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            products = await conn.fetch("""
+                SELECT
+                    id, fournisseur, designation_fr,
+                    prix_remise_ht, prix_brut_ht, remise_pct,
+                    unite, numero_facture, date_facture, updated_at
+                FROM produits
+                WHERE designation_fr ILIKE $1
+                   OR designation_raw ILIKE $1
+                   OR similarity(designation_fr, $2) > 0.3
+                ORDER BY prix_remise_ht ASC
+                LIMIT 20
+            """, f"%{search}%", search)
+
+            if not products:
+                return []
+
+            product_ids = [r["id"] for r in products]
+
+            hist_rows = await conn.fetch("""
+                SELECT produit_id, prix_ht, prix_brut, remise_pct, recorded_at
+                FROM prix_historique
+                WHERE produit_id = ANY($1::int[])
+                ORDER BY recorded_at ASC
+            """, product_ids)
+
+            hist_by_id: dict[int, list[dict]] = {}
+            for h in hist_rows:
+                d = dict(h)
+                pid = d.pop("produit_id")
+                hist_by_id.setdefault(pid, []).append(d)
+
+            result = []
+            for r in products:
+                d = dict(r)
+                d["price_history"] = hist_by_id.get(d["id"], [])
+                result.append(d)
+            return result
+
+    @classmethod
+    async def get_price_history(cls, designation: str, fournisseur: str) -> list[dict]:
+        """Historique de prix pour un produit chez un fournisseur."""
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT prix_remise_ht, prix_brut_ht, remise_pct, updated_at
+                FROM produits
+                WHERE designation_fr ILIKE $1 AND fournisseur = $2
+                ORDER BY updated_at DESC
+                LIMIT 10
+            """, f"%{designation}%", fournisseur)
+            return [dict(r) for r in rows]
