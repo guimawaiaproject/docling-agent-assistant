@@ -14,13 +14,14 @@ Endpoints :
 
 import asyncio
 import logging
+import mimetypes
 import os
 import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
 import sentry_sdk
-from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -112,6 +113,13 @@ app.add_middleware(
 )
 
 
+# ─── Upload constants ─────────────────────────────────────────────────────────
+_MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 Mo
+_ALLOWED_MIMES = {"application/pdf", "image/jpeg", "image/png", "image/webp"}
+_ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
+_CHUNK_SIZE = 256 * 1024  # 256 Ko
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # ENDPOINT 1 : Process facture (mode async avec job_id)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -128,14 +136,36 @@ async def process_invoice(
     Retourne immédiatement un job_id (HTTP 202).
     Polling via GET /api/v1/invoices/status/{job_id}
     """
-    job_id     = str(uuid.uuid4())
-    file_bytes = await file.read()
-    filename   = file.filename or "facture"
+    filename = file.filename or "facture"
 
-    MAX_UPLOAD = 50 * 1024 * 1024
-    if len(file_bytes) > MAX_UPLOAD:
-        raise HTTPException(status_code=413, detail="Fichier trop volumineux (max 50 Mo)")
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in _ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Extension non autorisée. Acceptées : {', '.join(sorted(_ALLOWED_EXTENSIONS))}",
+        )
 
+    declared_mime = file.content_type or mimetypes.guess_type(filename)[0] or ""
+    if declared_mime not in _ALLOWED_MIMES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Type MIME non autorisé ({declared_mime}). Acceptés : {', '.join(sorted(_ALLOWED_MIMES))}",
+        )
+
+    chunks: list[bytes] = []
+    total_size = 0
+    while True:
+        chunk = await file.read(_CHUNK_SIZE)
+        if not chunk:
+            break
+        total_size += len(chunk)
+        if total_size > _MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="Fichier trop volumineux (max 50 Mo)")
+        chunks.append(chunk)
+
+    file_bytes = b"".join(chunks)
+
+    job_id = str(uuid.uuid4())
     await DBManager.create_job(job_id, "processing")
 
     background_tasks.add_task(
