@@ -280,8 +280,8 @@ async def get_catalogue(
         return result
 
     except Exception as e:
-        logger.error(f"Erreur get_catalogue: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Erreur get_catalogue", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -300,8 +300,8 @@ async def save_batch(payload: BatchSaveRequest, _user: dict = Depends(get_curren
         )
         return {"saved": nb_saved, "total": len(payload.produits)}
     except Exception as e:
-        logger.error(f"Erreur batch save: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Erreur batch save", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -313,7 +313,8 @@ async def get_fournisseurs(_user: dict = Depends(get_current_user)):
         fournisseurs = await DBManager.get_fournisseurs()
         return {"fournisseurs": fournisseurs}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Erreur get_fournisseurs", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -324,7 +325,8 @@ async def get_stats(_user: dict = Depends(get_current_user)):
     try:
         return await DBManager.get_stats()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Erreur get_stats", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -342,7 +344,8 @@ async def get_history(limit: int = 50, _user: dict = Depends(get_current_user)):
                     r[k] = float(v)
         return {"history": rows, "total": len(rows)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Erreur get_history", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -370,8 +373,8 @@ async def get_facture_pdf_url(facture_id: int, _user: dict = Depends(get_current
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Erreur get_facture_pdf_url: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Erreur get_facture_pdf_url", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -430,7 +433,8 @@ async def get_price_history(product_id: int, _user: dict = Depends(get_current_u
                 result.append(d)
             return {"history": result, "product_id": product_id}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Erreur get_price_history", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 # ---------------------------------------------------------------------------
 # ENDPOINT 10 : Comparateur de prix fournisseurs
 # ---------------------------------------------------------------------------
@@ -462,8 +466,8 @@ async def compare_prices(search: str = "", with_history: bool = True, _user: dic
                 r["price_history"] = hist
         return {"results": rows, "search": search.strip(), "count": len(rows)}
     except Exception as e:
-        logger.error(f"Erreur compare_prices: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Erreur compare_prices", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 
 # ---------------------------------------------------------------------------
