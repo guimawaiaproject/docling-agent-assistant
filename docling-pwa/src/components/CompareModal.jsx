@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { BarChart3, Loader2, Search, TrendingUp, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { toast } from 'sonner'
 import apiClient from '../services/apiClient'
@@ -10,21 +10,46 @@ export default function CompareModal({ isOpen, onClose, initialSearch = '' }) {
   const [search, setSearch] = useState(initialSearch)
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
+  const abortRef = useRef(null)
+  const debounceRef = useRef(null)
 
-  const doSearch = async (q) => {
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+      clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  const doSearch = useCallback(async (q) => {
     const term = (q || search).trim()
     if (term.length < 2) return
+    abortRef.current?.abort()
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
     setLoading(true)
     try {
-      const { data } = await apiClient.get(ENDPOINTS.compare, { params: { search: term } })
+      const { data } = await apiClient.get(ENDPOINTS.compare, {
+        params: { search: term },
+        signal: ctrl.signal,
+      })
       setResults(data.results || [])
       if (data.results?.length === 0) toast.info('Aucun produit similaire')
-    } catch {
+    } catch (err) {
+      if (err.name === 'CanceledError' || ctrl.signal.aborted) return
       toast.error('Erreur comparaison')
     } finally {
-      setLoading(false)
+      if (!ctrl.signal.aborted) setLoading(false)
     }
-  }
+  }, [search])
+
+  const handleInputChange = useCallback((e) => {
+    const val = e.target.value
+    setSearch(val)
+    clearTimeout(debounceRef.current)
+    if (val.trim().length >= 2) {
+      debounceRef.current = setTimeout(() => doSearch(val), 400)
+    }
+  }, [doSearch])
 
   const chartData = useMemo(() => {
     const all = []
@@ -82,7 +107,7 @@ export default function CompareModal({ isOpen, onClose, initialSearch = '' }) {
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
                   value={search}
-                  onChange={e => setSearch(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={e => e.key === 'Enter' && doSearch()}
                   placeholder="Ex: ciment, tube cuivre..."
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl py-2.5 pl-9 pr-4
