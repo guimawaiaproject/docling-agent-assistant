@@ -341,7 +341,7 @@ export default function ScanPage() {
         const { data: status } = await apiClient.get(ENDPOINTS.status(jobInfo.job_id), { signal: ctrl.signal })
         if (status.status === 'completed') {
           setCameraOverlay(prev => ({ ...prev, step: 'done' }))
-          setJobComplete(status.result.products)
+          setJobComplete(status.result.products, getSource())
           if (navigator.vibrate) navigator.vibrate([100, 50, 100])
           await new Promise(r => setTimeout(r, 600))
           setCameraOverlay(null)

@@ -15,6 +15,7 @@ export default function ValidationPage() {
 
   const products          = useDoclingStore(s => s.extractedProducts)
   const currentInvoiceUrl = useDoclingStore(s => s.currentInvoice)
+  const pendingSource     = useDoclingStore(s => s.pendingSource ?? 'pc')
   const updateProduct     = useDoclingStore(s => s.updateProduct)
   const removeProduct     = useDoclingStore(s => s.removeProduct)
   const clearJob          = useDoclingStore(s => s.clearJob)
@@ -37,7 +38,7 @@ export default function ValidationPage() {
   const handleValidate = async () => {
     setIsSaving(true)
     try {
-      await apiClient.post(ENDPOINTS.batch, { produits: products })
+      await apiClient.post(ENDPOINTS.batch, { produits: products, source: pendingSource })
       clearJob()
       if (navigator.vibrate) navigator.vibrate([100, 50, 100])
       toast.success(`${products.length} produits enregistr\u00e9s dans le catalogue`)

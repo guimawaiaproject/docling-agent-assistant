@@ -20,6 +20,7 @@ export const useDoclingStore = create(
         currentJob: null,
         extractedProducts: [],
         currentInvoice: null,
+        pendingSource: 'pc',
 
         setJobStart: (jobId, fileUrl) => set({
           currentJob: jobId,
