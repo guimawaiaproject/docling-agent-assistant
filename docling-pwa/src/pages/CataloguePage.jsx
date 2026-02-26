@@ -125,13 +125,20 @@ async function exportExcel(data) {
   URL.revokeObjectURL(url)
 }
 
+const PAGE_SIZE = 100
+
 export default function CataloguePage() {
   const [allProducts, setAllProducts]   = useState([])
   const [fournisseurs, setFournisseurs] = useState([])
+  const [searchInput, setSearchInput]   = useState('')
   const [search,      setSearch]        = useState('')
   const [famille,     setFamille]       = useState('Toutes')
   const [fournisseur, setFournisseur]   = useState('Tous')
   const [loading,     setLoading]       = useState(true)
+  const [loadingMore, setLoadingMore]   = useState(false)
+  const [nextCursor,  setNextCursor]    = useState(null)
+  const [hasMore,     setHasMore]       = useState(false)
+  const [total,       setTotal]         = useState(0)
   const [sortKey,     setSortKey]       = useState('designation_fr')
   const [sortDir,     setSortDir]       = useState('asc')
   const [view,        setView]          = useState('cards')
@@ -140,45 +147,57 @@ export default function CataloguePage() {
   const parentRef = useRef(null)
   const compareTriggerRef = useRef(null)
 
-  const fetchCatalogue = useCallback(async () => {
-    setLoading(true)
+  const fetchCatalogue = useCallback(async (append = false, cursor = null) => {
+    if (append) setLoadingMore(true)
+    else setLoading(true)
     try {
+      const params = { limit: PAGE_SIZE }
+      if (cursor) params.cursor = cursor
+      if (famille !== 'Toutes') params.famille = famille
+      if (fournisseur !== 'Tous') params.fournisseur = fournisseur
+      if (search.trim()) params.search = search.trim()
+
       const [catRes, fournRes] = await Promise.all([
-        apiClient.get(ENDPOINTS.catalogue),
-        apiClient.get(ENDPOINTS.fournisseurs),
+        apiClient.get(ENDPOINTS.catalogue, { params }),
+        append ? Promise.resolve(null) : apiClient.get(ENDPOINTS.fournisseurs),
       ])
-      const products = Array.isArray(catRes.data) ? catRes.data : (catRes.data.products || [])
-      setAllProducts(products)
-      setFournisseurs(fournRes.data.fournisseurs || [])
+      const data = catRes.data
+      const products = data.products || []
+
+      if (append) {
+        setAllProducts(prev => [...prev, ...products])
+      } else {
+        setAllProducts(products)
+        if (fournRes?.data?.fournisseurs) setFournisseurs(fournRes.data.fournisseurs)
+      }
+      setNextCursor(data.next_cursor || null)
+      setHasMore(data.has_more || false)
+      setTotal(data.total ?? products.length)
     } catch {
       toast.error('Impossible de charger le catalogue')
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
-  }, [])
+  }, [famille, fournisseur, search])
 
-  useEffect(() => { fetchCatalogue() }, [fetchCatalogue])
+  useEffect(() => {
+    const id = setTimeout(() => setSearch(searchInput), 400)
+    return () => clearTimeout(id)
+  }, [searchInput])
+
+  useEffect(() => {
+    setNextCursor(null)
+    fetchCatalogue(false, null)
+  }, [famille, fournisseur, search])
+
+  const loadMore = useCallback(() => {
+    if (!hasMore || loadingMore || !nextCursor) return
+    fetchCatalogue(true, nextCursor)
+  }, [hasMore, loadingMore, nextCursor, fetchCatalogue])
 
   const filtered = useMemo(() => {
-    let out = [...allProducts]
-
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      out = out.filter(p =>
-        p.designation_fr?.toLowerCase().includes(q) ||
-        p.designation_raw?.toLowerCase().includes(q) ||
-        p.fournisseur?.toLowerCase().includes(q)
-      )
-    }
-
-    if (famille !== 'Toutes') {
-      out = out.filter(p => p.famille === famille)
-    }
-
-    if (fournisseur !== 'Tous') {
-      out = out.filter(p => p.fournisseur === fournisseur)
-    }
-
+    const out = [...allProducts]
     out.sort((a, b) => {
       const va = a[sortKey] ?? ''
       const vb = b[sortKey] ?? ''
@@ -228,7 +247,7 @@ export default function CataloguePage() {
             <Package size={20} className="text-emerald-400" />
             <h1 className="text-xl font-black text-slate-100">Catalogue</h1>
             <span className="text-xs font-bold bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">
-              {filtered.length}
+              {filtered.length}{total > 0 ? ` / ${total}` : ''}
             </span>
           </div>
 
@@ -244,7 +263,7 @@ export default function CataloguePage() {
             </button>
 
             <button
-              onClick={fetchCatalogue}
+              onClick={() => { setNextCursor(null); fetchCatalogue(false, null) }}
               aria-label="Actualiser le catalogue"
               className="p-2 text-slate-500 hover:text-slate-300 bg-slate-800 rounded-lg border border-slate-700 transition-colors"
             >
@@ -260,8 +279,8 @@ export default function CataloguePage() {
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
             <input
               id="catalogue-search"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
               placeholder="Recherche..."
               data-testid="catalogue-search"
               className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 pl-9 pr-4
@@ -453,6 +472,21 @@ export default function CataloguePage() {
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {hasMore && (
+            <div className="flex justify-center py-6">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50
+                  text-slate-300 font-bold rounded-xl border border-slate-700 transition-colors
+                  flex items-center gap-2"
+              >
+                {loadingMore ? <Loader2 size={16} className="animate-spin" /> : null}
+                Charger plus
+              </button>
             </div>
           )}
         </div>
