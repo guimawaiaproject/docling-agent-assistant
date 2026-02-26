@@ -333,50 +333,56 @@ export default function CataloguePage() {
 
           {/* ── VUE TABLE ────────────────────────────────────── */}
           {view === 'table' && (
-            <div className="min-w-[800px]">
-              {/* Header colonnes */}
-              <div className="flex items-center px-3 py-2 bg-slate-900 border-b border-slate-800 sticky top-0 z-10">
-                {COLUMNS.map(col => (
-                  <button
-                    key={col.key}
-                    onClick={() => col.sortable && toggleSort(col.key)}
-                    className={`${col.width} flex items-center text-[10px] font-black uppercase tracking-widest
-                      text-slate-500 hover:text-slate-300 transition-colors ${col.sortable ? 'cursor-pointer' : 'cursor-default'}`}
-                  >
-                    {col.label}
-                    <SortIcon col={col} />
-                  </button>
-                ))}
-              </div>
-
-              {/* Rows virtualisées */}
-              <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
-                {virtualizer.getVirtualItems().map(vRow => {
-                  const p = filtered[vRow.index]
-                  return (
-                    <div
-                      key={vRow.key}
-                      data-index={vRow.index}
-                      ref={virtualizer.measureElement}
-                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vRow.start}px)` }}
-                      className="flex items-center px-3 py-2.5 border-b border-slate-800/60
-                        hover:bg-slate-800/50 transition-colors text-xs"
+            <table className="min-w-[800px] w-full border-collapse">
+              <thead className="sticky top-0 z-10 bg-slate-900">
+                <tr className="border-b border-slate-800">
+                  {COLUMNS.map(col => (
+                    <th
+                      key={col.key}
+                      scope="col"
+                      onClick={() => col.sortable && toggleSort(col.key)}
+                      aria-sort={sortKey === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
+                      className={`${col.width} px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest
+                        text-slate-500 hover:text-slate-300 transition-colors ${col.sortable ? 'cursor-pointer' : 'cursor-default'}`}
                     >
-                      <span className="flex-[3] text-slate-200 font-medium truncate pr-2">{p.designation_fr}</span>
-                      <span className="flex-[1.5] text-slate-400 truncate pr-2">{p.famille}</span>
-                      <span className="flex-[1.5] text-slate-500 truncate pr-2">{p.fournisseur}</span>
-                      <span className="w-14 text-slate-500">{p.unite}</span>
-                      <span className="w-20 text-right text-slate-400">{parseFloat(p.prix_brut_ht||0).toFixed(2)}</span>
-                      <span className="w-16 text-right text-amber-500/80">
-                        {p.remise_pct > 0 ? `-${p.remise_pct}%` : '—'}
+                      <span className="flex items-center">
+                        {col.label}
+                        <SortIcon col={col} />
                       </span>
-                      <span className="w-20 text-right text-emerald-400 font-bold">{parseFloat(p.prix_remise_ht||0).toFixed(2)}</span>
-                      <span className="w-20 text-right text-slate-400">{parseFloat(p.prix_ttc_iva21||0).toFixed(2)}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colSpan={COLUMNS.length} style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative', padding: 0 }}>
+                  {virtualizer.getVirtualItems().map(vRow => {
+                    const p = filtered[vRow.index]
+                    return (
+                      <div
+                        key={vRow.key}
+                        role="row"
+                        data-index={vRow.index}
+                        ref={virtualizer.measureElement}
+                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vRow.start}px)`, display: 'flex' }}
+                        className="items-center px-3 py-2.5 border-b border-slate-800/60
+                          hover:bg-slate-800/50 transition-colors text-xs"
+                      >
+                        <span role="cell" className="flex-[3] text-slate-200 font-medium truncate pr-2">{p.designation_fr}</span>
+                        <span role="cell" className="flex-[1.5] text-slate-400 truncate pr-2">{p.famille}</span>
+                        <span role="cell" className="flex-[1.5] text-slate-500 truncate pr-2">{p.fournisseur}</span>
+                        <span role="cell" className="w-14 text-slate-500">{p.unite}</span>
+                        <span role="cell" className="w-20 text-right text-slate-400">{parseFloat(p.prix_brut_ht||0).toFixed(2)}</span>
+                        <span role="cell" className="w-16 text-right text-amber-500/80">
+                          {p.remise_pct > 0 ? `-${p.remise_pct}%` : '—'}
+                        </span>
+                        <span role="cell" className="w-20 text-right text-emerald-400 font-bold">{parseFloat(p.prix_remise_ht||0).toFixed(2)}</span>
+                        <span role="cell" className="w-20 text-right text-slate-400">{parseFloat(p.prix_ttc_iva21||0).toFixed(2)}</span>
+                      </div>
+                    )
+                  })}
+                </td></tr>
+              </tbody>
+            </table>
           )}
 
           {/* ── VUE CARTES (mobile-first) ─────────────────────── */}
