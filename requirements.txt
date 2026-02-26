@@ -40,3 +40,6 @@ alembic==1.18.4
 # --- Config ---
 python-dotenv==1.0.1
 python-multipart==0.0.12
+
+# --- XML (facturx_extractor, XXE-hardened) ---
+lxml==5.4.0
