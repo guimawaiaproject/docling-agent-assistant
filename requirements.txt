@@ -10,7 +10,6 @@ google-genai>=1.0.0
 
 # --- Vision / Image Processing ---
 opencv-python-headless==4.10.0.84
-Pillow==10.4.0
 
 # --- Validation donnees ---
 pydantic==2.9.2
