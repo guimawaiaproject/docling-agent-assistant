@@ -23,4 +23,6 @@ export const ENDPOINTS = {
   pdfUrl:       (factureId) => `${API_BASE_URL}/api/v1/history/${factureId}/pdf`,
   syncStatus:   `${API_BASE_URL}/api/v1/sync/status`,
   health:       `${API_BASE_URL}/health`,
+  login:        `${API_BASE_URL}/api/v1/auth/login`,
+  register:     `${API_BASE_URL}/api/v1/auth/register`,
 }

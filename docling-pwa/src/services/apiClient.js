@@ -19,6 +19,10 @@ apiClient.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('docling-token')
+      const path = typeof window !== 'undefined' ? window.location.pathname : ''
+      if (!path.startsWith('/login') && !path.startsWith('/register')) {
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(err)
   },
