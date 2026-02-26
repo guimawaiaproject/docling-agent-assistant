@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import {
   Activity, CheckCircle2, ChevronRight, Cloud, Cpu, Info,
-  Loader2, Package, RefreshCw, Wifi, WifiOff, FileText
+  Loader2, Package, RefreshCw, Wifi, FileText
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
