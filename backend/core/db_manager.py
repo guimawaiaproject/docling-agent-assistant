@@ -517,17 +517,3 @@ class DBManager:
                 d["price_history"] = hist_by_id.get(d["id"], [])
                 result.append(d)
             return result
-
-    @classmethod
-    async def get_price_history(cls, designation: str, fournisseur: str) -> list[dict]:
-        """Historique de prix pour un produit chez un fournisseur."""
-        pool = await cls.get_pool()
-        async with pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT prix_remise_ht, prix_brut_ht, remise_pct, updated_at
-                FROM produits
-                WHERE designation_fr ILIKE $1 AND fournisseur = $2
-                ORDER BY updated_at DESC
-                LIMIT 10
-            """, f"%{designation}%", fournisseur)
-            return [dict(r) for r in rows]
