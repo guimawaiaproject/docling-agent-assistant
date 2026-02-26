@@ -32,9 +32,9 @@ LANGUES : La facture peut etre en Catalan, Espagnol ou Francais. Traduis TOUJOUR
 designation_fr en Francais clair et concis (max 80 caracteres).
 
 FAMILLES BTP autorisees (choisir la plus proche) :
-Armature, Cloison, Climatisation, Plomberie, Electricite, Menuiserie,
+Armature, Cloison, Climatisation, Plomberie, Électricité, Menuiserie,
 Couverture, Carrelage, Isolation, Peinture, Outillage, Consommable,
-Maconnerie, Terrassement, Autre
+Maçonnerie, Terrassement, Autre
 
 VERIFICATION ARITHMETIQUE OBLIGATOIRE :
 - prix_remise_ht = prix_brut_ht x (1 - remise_pct/100)
