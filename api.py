@@ -181,6 +181,17 @@ async def process_invoice(
     Retourne immédiatement un job_id (HTTP 202).
     Polling via GET /api/v1/invoices/status/{job_id}
     """
+    if model not in Config.MODELS_DISPONIBLES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Modèle invalide. Acceptés : {', '.join(sorted(Config.MODELS_DISPONIBLES))}",
+        )
+    if source not in ("pc", "mobile", "watchdog"):
+        raise HTTPException(
+            status_code=400,
+            detail="Source invalide. Valeurs acceptées : pc, mobile, watchdog",
+        )
+
     filename = file.filename or "facture"
 
     ext = os.path.splitext(filename)[1].lower()
@@ -479,6 +490,12 @@ async def compare_prices(search: str = "", with_history: bool = True, _user: dic
 @limiter.limit("5/minute")
 async def register(request: Request, email: str = Form(...), password: str = Form(...), name: str = Form(default="")):
     """Inscription nouvel utilisateur."""
+    if len(email) > 255:
+        raise HTTPException(status_code=400, detail="Email trop long")
+    if len(password) > 128:
+        raise HTTPException(status_code=400, detail="Mot de passe trop long")
+    if len(name) > 200:
+        raise HTTPException(status_code=400, detail="Nom trop long")
     pool = await DBManager.get_pool()
     async with pool.acquire() as conn:
         existing = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
@@ -497,6 +514,10 @@ async def register(request: Request, email: str = Form(...), password: str = For
 @limiter.limit("5/minute")
 async def login(request: Request, email: str = Form(...), password: str = Form(...)):
     """Connexion utilisateur. Rehash silencieux PBKDF2 → Argon2id si nécessaire."""
+    if len(email) > 255:
+        raise HTTPException(status_code=400, detail="Email trop long")
+    if len(password) > 128:
+        raise HTTPException(status_code=400, detail="Mot de passe trop long")
     pool = await DBManager.get_pool()
     async with pool.acquire() as conn:
         user = await conn.fetchrow(
