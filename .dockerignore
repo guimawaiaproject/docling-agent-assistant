@@ -1,24 +1,27 @@
-venv/
-.venv/
+# Dependencies & cache
+node_modules/
+**/node_modules/
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
-.env
-.env.local
-credentials.json
-service_account.json
-*.db
-*.db-shm
-*.db-wal
+
+# Git
 .git/
-.github/
+.gitignore
+
+# Tests (not needed in image)
 tests/
-PDF Test/
-.pytest_cache/
-.streamlit/
-*.md
-*.key
-*.pem
-create_tests.py
-setup.bat
-setup.sh
+*.pdf
+
+# Environment (never copy secrets)
+.env
+.env.*
+!.env.example
+
+# Migrations bytecode
+migrations/versions/*.pyc
+
+# Frontend build (API image does not need it)
+docling-pwa/dist/
+docling-pwa/node_modules/
