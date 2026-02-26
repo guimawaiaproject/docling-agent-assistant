@@ -152,8 +152,10 @@ export default function CompareModal({ isOpen, onClose, triggerRef, initialSearc
           <div className="p-4 border-b border-slate-800">
             <div className="flex gap-2">
               <div className="relative flex-1">
+                <label htmlFor="compare-search" className="sr-only">Rechercher un produit à comparer</label>
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
+                  id="compare-search"
                   value={search}
                   onChange={handleInputChange}
                   onKeyDown={e => e.key === 'Enter' && doSearch()}

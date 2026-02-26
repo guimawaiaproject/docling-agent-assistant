@@ -238,8 +238,10 @@ export default function CataloguePage() {
         {/* Recherche + Filtres */}
         <div className="flex gap-2">
           <div className="relative flex-1">
+            <label htmlFor="catalogue-search" className="sr-only">Rechercher dans le catalogue</label>
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
             <input
+              id="catalogue-search"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Recherche..."
