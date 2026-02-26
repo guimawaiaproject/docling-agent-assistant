@@ -146,7 +146,7 @@ def extract_from_facturx_pdf(pdf_bytes: bytes) -> Optional[InvoiceExtractionResu
             )
             prix_brut_ht = unit_price
             remise_pct = 0.0
-            if allowance > 0 and line_amount > 0:
+            if allowance > 0 and (line_amount + allowance) > 0:
                 remise_pct = round((allowance / (line_amount + allowance)) * 100, 2)
                 prix_brut_ht = unit_price / (1 - remise_pct / 100) if remise_pct < 100 else unit_price
 
