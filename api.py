@@ -172,7 +172,7 @@ _CHUNK_SIZE = 256 * 1024  # 256 Ko
 async def process_invoice(
     background_tasks: BackgroundTasks,
     file:   UploadFile = File(...),
-    model:  str        = Form(default="gemini-3-flash"),
+    model:  str        = Form(default="gemini-3-flash-preview"),
     source: str        = Form(default="pc"),
     _user: dict        = Depends(get_current_user),
 ):
