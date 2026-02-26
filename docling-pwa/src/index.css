@@ -1,7 +1,28 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+  * {
+    box-sizing: border-box;
   }
+
+  body {
+    background-color: #020617; /* slate-950 */
+    color: #f1f5f9;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* iOS Safe Area */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Supprime les flèches input number */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+/* Safe area pour la navbar */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
