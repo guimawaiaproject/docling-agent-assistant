@@ -12,15 +12,14 @@ pour PgBouncer → jusqu'à 10k connexions, meilleure résilience.
 
 import json
 import logging
-import os
 from datetime import date, datetime
 from typing import Any, Optional
 
 import asyncpg
 
-logger = logging.getLogger(__name__)
+from backend.core.config import Config
 
-DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+logger = logging.getLogger(__name__)
 
 _UPSERT_SQL = """
     INSERT INTO produits (
@@ -87,10 +86,10 @@ class DBManager:
     @classmethod
     async def get_pool(cls) -> asyncpg.Pool:
         if cls._pool is None:
-            if not DATABASE_URL:
-                raise RuntimeError("DATABASE_URL non d\u00e9finie dans .env")
+            if not Config.DATABASE_URL:
+                raise RuntimeError("DATABASE_URL non définie dans .env")
             cls._pool = await asyncpg.create_pool(
-                DATABASE_URL,
+                Config.DATABASE_URL,
                 min_size=2,
                 max_size=10,
                 command_timeout=30,
