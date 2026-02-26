@@ -1,0 +1,27 @@
+# Tests ultra-rigoureux — zéro mock
+# Install: pip install -r tests/requirements-test.txt
+
+# Dépendances de base (déjà dans requirements.txt)
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+
+# HTTP réel (async-first)
+httpx>=0.27.0
+
+# Base de données réelle (sync pour fixtures)
+psycopg2-binary>=2.9.0
+
+# Génération données réalistes
+faker>=30.0.0
+
+# E2E — simulation utilisateur réelle
+playwright>=1.49.0
+
+# Performance / charge
+locust>=2.32.0
+
+# Requêtes concurrentes
+aiohttp>=3.11.0
+
+# Timeout pytest
+pytest-timeout>=2.3.0
