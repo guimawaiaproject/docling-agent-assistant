@@ -13,7 +13,7 @@
 - [x] Suppression docs obsoletes : `RAPPORT_AUDIT.md`, `cahier_des_charges_premium.md`, `PLAN_TECHNIQUE_DOCLING_AGENT.md`
 - [x] Fix `Dockerfile` (suppression reference a `app.py` Streamlit)
 - [x] Fix `App.jsx` et `Navbar.jsx` (HistoryPage jamais accessible, maintenant branche)
-- [x] Fix `requirements.txt` (retrait `pydantic-settings`, `openpyxl` inutilises; ajout `boto3`)
+- [x] Fix `requirements.txt` (retrait `openpyxl` inutilise; ajout `boto3`, `pydantic-settings` utilise depuis Phase 3)
 - [x] Fix `db_manager.py` (deduplication code SQL upsert)
 - [x] Nettoyage `.env.example` (toutes les variables documentees)
 
@@ -24,12 +24,9 @@
 ### Backend
 
 1. **Archivage cloud PDF (Storj S3)**
-   - `backend/core/config.py` declare deja `STORJ_BUCKET`, `STORJ_ACCESS_KEY`, etc.
-   - `boto3` est dans `requirements.txt`
-   - Il manque : `backend/services/storage_service.py` (upload/download S3)
-   - Il manque : integration dans `orchestrator.py` (upload apres extraction)
-   - Il manque : colonne `pdf_url` dans `schema_neon.sql` et dans `db_manager.py`
-   - Statut : **NON IMPLEMENTE**
+   - `backend/services/storage_service.py` implemente (upload/download S3 via boto3)
+   - Integration dans `orchestrator.py` (upload parallele avec asyncio.gather)
+   - Statut : **IMPLEMENTE** (Phase 2)
 
 2. **Watchdog (`watchdog_service.py`)**
    - Le service existe et est importe dans `api.py` (lifespan)
@@ -42,11 +39,14 @@
 
 4. **Gestion erreurs Gemini**
    - `gemini_service.py` gere le rate-limit (429) avec retry
-   - Pas de circuit-breaker si le modele est down pendant longtemps
+   - Circuit-breaker implemente dans `api.py` (`_GeminiCircuitBreaker`, seuil 5 erreurs consecutives)
+   - Statut : **IMPLEMENTE** (Phase 2)
 
 5. **Tests**
-   - Aucun test unitaire ou d'integration dans le projet actuellement
-   - A prevoir : tests `pytest` pour pipeline extraction, db_manager, API endpoints
+   - 91 tests backend (pytest) + 43 tests frontend (Vitest) = 134 tests
+   - Couvre : unit, integration, API, E2E Playwright, securite, performance, data integrity
+   - Config unifiee dans `pyproject.toml`
+   - Statut : **IMPLEMENTE** (Phase 6)
 
 ### Frontend
 
@@ -75,15 +75,14 @@
 
 ## Prochaines etapes suggerees (par priorite)
 
-| # | Tache | Effort | Impact |
+| # | Tache | Statut | Effort |
 |---|-------|--------|--------|
-| 1 | Implementer stockage cloud S3 (Storj) | Moyen | Archivage + tracabilite factures |
-| 2 | Ajouter colonne `pdf_url` au schema + API | Faible | Lien direct vers le PDF original |
-| 3 | Reecrire `SettingsPage` (config utilisateur) | Moyen | UX |
-| 4 | Tests unitaires (pipeline, BDD, API) | Moyen | Fiabilite |
-| 5 | Nettoyer extension `vector` du schema SQL | Faible | Proprete |
-| 6 | PWA manifest check apres build | Faible | Installation mobile |
-| 7 | CI/CD pipeline (GitHub Actions) | Moyen | Qualite |
+| 1 | Stockage cloud S3 (Storj) | **FAIT** (Phase 2) | - |
+| 2 | Tests unitaires + integration + E2E | **FAIT** (Phase 6, 134 tests) | - |
+| 3 | CI/CD pipeline (GitHub Actions) | **FAIT** (Phase 5) | - |
+| 4 | Reecrire `SettingsPage` (config utilisateur) | A faire | Moyen |
+| 5 | Nettoyer extension `vector` du schema SQL | A faire | Faible |
+| 6 | PWA manifest check apres build | Verifie OK | - |
 
 ---
 
@@ -95,9 +94,15 @@
 | `DATABASE_URL` | Oui | URL PostgreSQL Neon |
 | `DEFAULT_AI_MODEL` | Non | Modele IA (defaut: gemini-3-flash-preview) |
 | `WATCHDOG_FOLDER` | Non | Dossier surveille (defaut: ./Docling_Factures) |
-| `WATCHDOG_ENABLED` | Non | Activer watchdog (defaut: false) |
+| `WATCHDOG_ENABLED` | Non | Activer watchdog (defaut: true) |
 | `STORJ_BUCKET` | Non | Bucket S3 pour archivage PDF |
 | `STORJ_ACCESS_KEY` | Non | Cle acces Storj |
 | `STORJ_SECRET_KEY` | Non | Cle secrete Storj |
 | `STORJ_ENDPOINT` | Non | Endpoint S3 Storj |
 | `PWA_URL` | Non | URL frontend en production (CORS) |
+| `JWT_SECRET` | **Oui** | Secret JWT (generer avec openssl rand -hex 32) |
+| `JWT_EXPIRY_HOURS` | Non | Duree token JWT (defaut: 24h) |
+| `SENTRY_DSN` | Non | DSN Sentry backend (monitoring) |
+| `ENVIRONMENT` | Non | Nom environnement (defaut: production) |
+| `VITE_TVA_RATE` | Non | Taux TVA frontend (defaut: 0.21) |
+| `VITE_SENTRY_DSN` | Non | DSN Sentry frontend |

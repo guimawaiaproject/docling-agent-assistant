@@ -48,11 +48,18 @@ docling-agent-assistant/
 |   +-- services/
 |   |   +-- gemini_service.py           # Connecteur Gemini + retry rate-limit + cache par model_id
 |   |   +-- image_preprocessor.py       # Nettoyeur photos mobiles (OpenCV)
-|   |   +-- storage_service.py          # Upload S3 Storj
-|   |   +-- watchdog_service.py        # Surveillance dossier magique
-|   |   +-- auth_service.py             # JWT, hash password
+|   |   +-- storage_service.py          # Upload S3 Storj (boto3)
+|   |   +-- watchdog_service.py         # Surveillance dossier magique
+|   |   +-- auth_service.py             # JWT (PyJWT) + hash argon2id
 |   |
-|   +-- schema_neon.sql                 # Schéma SQL complet
+|   +-- utils/
+|   |   +-- serializers.py              # serialize_row (asyncpg Record -> dict)
+|   |
+|   +-- schema_neon.sql                 # Schéma SQL de référence
+|
++-- migrations/                         # Alembic (a001 baseline, a002 constraints, a003 FK)
+|   +-- env.py
+|   +-- versions/
 |
 +-- docling-pwa/                        # Frontend PWA React
 |   +-- src/
@@ -63,7 +70,7 @@ docling-agent-assistant/
 |   |   +-- store/useStore.js           # Zustand (state management)
 |   +-- vite.config.js                  # Config Vite + PWA + HTTPS dev
 |
-+-- tests/                              # pytest (104 tests)
++-- tests/                              # pytest (91) + vitest (43) = 134 tests
 +-- docs/                               # Documentation
 ```
 

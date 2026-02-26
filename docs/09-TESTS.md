@@ -9,24 +9,23 @@
 
 | Statut | Résultat |
 |--------|----------|
-| **Total** | 104 tests |
-| **Passés** | 104 |
+| **Total** | 91 tests |
+| **Passés** | 91 |
 | **Échoués** | 0 |
-| **Durée** | ~1 min 44 s |
+| **Durée** | ~42 s |
 
 ### Modules testés
 
-| Module | Fichier | Tests |
-|--------|---------|-------|
-| API Endpoints | `test_api_endpoints.py` | 8 |
-| Auth (JWT, password) | `test_auth.py` | 12 |
-| Config | `test_config.py` | 6 |
-| DB Manager | `test_db_manager.py` | 12 |
-| Gemini Service | `test_gemini_service.py` | 10 |
-| Image Preprocessor | `test_image_preprocessor.py` | 15 |
-| Orchestrator | `test_orchestrator.py` | 15 |
-| Schemas Pydantic | `test_schemas.py` | 19 |
-| Storage Service | `test_storage.py` | 7 |
+| Catégorie | Dossier | Tests |
+|-----------|---------|-------|
+| Unitaires | `tests/01_unit/` | config, gemini_service, image_preprocessor, models, orchestrator, validators |
+| Intégration | `tests/02_integration/` | database, storage |
+| API | `tests/03_api/` | auth, catalogue, health, invoices, reset_admin, stats_history, sync |
+| E2E | `tests/04_e2e/` | catalogue_browse, scan_flow, settings_sync |
+| Sécurité | `tests/05_security/` | auth_bypass, headers, injection |
+| Performance | `tests/06_performance/` | response_times, locustfile |
+| Data integrity | `tests/07_data_integrity/` | api_db_coherence, constraints, transactions |
+| External | `tests/08_external_services/` | extraction_reelle |
 
 ### Corrections appliquées pendant les tests
 
@@ -52,23 +51,33 @@
 
 ---
 
-## 3. Tests Frontend
+## 3. Tests Frontend (Vitest + Testing Library)
+
+| Statut | Résultat |
+|--------|----------|
+| **Total** | 43 tests |
+| **Passés** | 43 |
+| **Échoués** | 0 |
+| **Durée** | ~8 s |
+
+### Fichiers testés
+
+| Fichier | Tests | Couverture |
+|---------|-------|------------|
+| `CompareModal.test.jsx` | 17 | Accessibilité, recherche, debounce, dialog |
+| `useStore.test.js` | ~15 | Zustand state, queue, products |
+| `apiClient.test.js` | ~11 | Intercepteur Bearer, retry, erreurs |
 
 ### Build production
 
 | Étape | Résultat |
 |-------|----------|
-| `npm run build` | OK (2m 48s) |
-| Modules transformés | 2608 |
+| `npm run build` | OK |
 | Sortie | `dist/` (PWA + SW + manifest) |
 
-**Avertissement :** Chunks > 500 Ko (recommandation de code-split).
+### Lint (ESLint 9)
 
-### Lint (ESLint)
-
-| Avant | Après correction |
-|-------|------------------|
-| 1 erreur (`setCompareSearch` unused) | 0 erreur |
+0 erreur, 0 warning
 
 ---
 
@@ -111,9 +120,9 @@
 
 ---
 
-## 6. Tests UI/UX (manuel)
+## 6. Tests UI/UX
 
-**Note :** Les tests navigateur E2E (Playwright/Cypress) ne sont pas configurés. Tests manuels recommandés :
+**Note :** Les tests E2E Playwright sont configurés dans `tests/04_e2e/` avec fixtures centralisées dans `conftest.py`. Tests manuels complémentaires recommandés :
 
 1. **Scan** : Glisser-déposer PDF/image → Lancer → Vérifier progression
 2. **Validation** : Édition des champs, suppression produit, lightbox facture
@@ -128,10 +137,11 @@
 
 | Catégorie | Résultat |
 |-----------|----------|
-| **Backend pytest** | 104/104 passés |
-| **API endpoints** | 7/7 OK |
+| **Backend pytest** | 91/91 passés |
+| **Frontend vitest** | 43/43 passés |
+| **Total** | 134/134 passés |
 | **Frontend build** | OK |
-| **Frontend lint** | OK (après correction) |
+| **Frontend lint** | OK |
 | **Sécurité** | CORS, limite upload, auth DELETE corrigés |
 | **Dépôts** | `datetime.utcnow` remplacé |
 
@@ -140,14 +150,14 @@
 ## 8. Commandes pour relancer les tests
 
 ```bash
-# Backend
-cd "c:\Users\guima\Downloads\docling-agent-assistant (1)"
-.\venv\Scripts\python.exe -m pytest tests/ -v
+# Backend (91 tests)
+pytest tests/01_unit -v --tb=short
 
-# Frontend
-cd docling-pwa
-npm run build
-npm run lint
+# Frontend (43 tests)
+cd docling-pwa && npx vitest run
+
+# Tous les tests (hors slow/external)
+pytest tests/ -v -m "not slow and not external"
 ```
 
 ---

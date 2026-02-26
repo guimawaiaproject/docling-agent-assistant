@@ -25,7 +25,7 @@ Application d'extraction automatisée de factures fournisseurs pour le secteur B
 | **[06-AUDIT-FRONTEND.md](06-AUDIT-FRONTEND.md)** | Pages, composants, corrections |
 | **[07-ANALYSE-UI.md](07-ANALYSE-UI.md)** | Analyse des 5 écrans |
 | **[08-AVIS-CONCURRENTS.md](08-AVIS-CONCURRENTS.md)** | Avis clients, attentes |
-| **[09-TESTS.md](09-TESTS.md)** | Rapport tests (104 pytest) |
+| **[09-TESTS.md](09-TESTS.md)** | Rapport tests (134 backend+frontend) |
 | **[10-NOTES-AUDIT.md](10-NOTES-AUDIT.md)** | Notes d'audit, prochaines étapes |
 | **[12-EXPERT-REPORT.md](12-EXPERT-REPORT.md)** | Rapport d'expert, SWOT, roadmap, écosystème BTP |
 | **[13-PLAN-OPTIMISATION.md](13-PLAN-OPTIMISATION.md)** | Plan chronologique avec tests de vérification |
