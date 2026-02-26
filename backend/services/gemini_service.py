@@ -113,7 +113,7 @@ class GeminiService:
         self._client = genai.Client(api_key=api_key)
         self.model_id = model_id
         self.model_name = model_name
-        logger.info(f"GeminiService init: {model_name} (google-genai async)")
+        logger.info("GeminiService init: %s (google-genai async)", model_name)
 
     async def extract_from_bytes_async(
         self,
@@ -152,7 +152,7 @@ class GeminiService:
                 except json.JSONDecodeError:
                     json_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
                     if not json_match:
-                        raise ValueError(f"Pas de JSON dans la reponse: {raw_text[:200]}")
+                        raise ValueError("Pas de JSON dans la reponse: %s" % raw_text[:200])
                     data = json.loads(json_match.group())
 
                 produits_valides = []
@@ -161,7 +161,7 @@ class GeminiService:
                         p["fournisseur"] = p.get("fournisseur") or data.get("fournisseur_detecte", "Inconnu")
                         produits_valides.append(Product(**p))
                     except Exception as e:
-                        logger.warning(f"Produit ignore (validation): {e}")
+                        logger.warning("Produit ignore (validation): %s", e)
 
                 result = InvoiceExtractionResult(
                     produits=produits_valides,
@@ -173,17 +173,17 @@ class GeminiService:
                     tokens_used=tokens,
                 )
 
-                logger.info(f"OK {filename}: {len(produits_valides)} produits ({tokens} tokens)")
+                logger.info("OK %s: %d produits (%d tokens)", filename, len(produits_valides), tokens)
                 return result
 
             except Exception as e:
                 err_str = str(e)
                 if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
                     wait = 2 ** (attempt + 1)
-                    logger.warning(f"Rate limit Gemini, attente {wait}s ({attempt+1}/{max_retries})")
+                    logger.warning("Rate limit Gemini, attente %ds (%d/%d)", wait, attempt + 1, max_retries)
                     await asyncio.sleep(wait)
                     continue
-                logger.error(f"Erreur Gemini ({filename}): {e}")
+                logger.error("Erreur Gemini (%s): %s", filename, e)
                 raise
 
-        raise RuntimeError(f"Gemini rate limit persistant apres {max_retries} tentatives")
+        raise RuntimeError("Gemini rate limit persistant apres %d tentatives" % max_retries)
