@@ -48,11 +48,8 @@ def verify_token(token: str) -> Optional[dict]:
         data = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         data["sub"] = int(data["sub"])
         return data
-    except jwt.ExpiredSignatureError:
-        logger.debug("Token expiré")
-        return None
-    except jwt.InvalidTokenError:
-        logger.debug("Token invalide")
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError, ValueError, KeyError):
+        logger.debug("Token invalide ou payload malformé")
         return None
 
 
