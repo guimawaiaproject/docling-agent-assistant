@@ -97,33 +97,46 @@ export default function DevisPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-2 mb-4">
-        <input
-          value={entreprise}
-          onChange={e => setEntreprise(e.target.value)}
-          placeholder="Votre entreprise"
-          className="bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3
-            text-sm text-slate-200 placeholder-slate-600
-            focus:outline-none focus:border-emerald-500/60 transition-all"
-        />
-        <input
-          value={client}
-          onChange={e => setClient(e.target.value)}
-          placeholder="Nom du client"
-          className="bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3
-            text-sm text-slate-200 placeholder-slate-600
-            focus:outline-none focus:border-emerald-500/60 transition-all"
-        />
-        <input
-          value={devisNum}
-          onChange={e => setDevisNum(e.target.value)}
-          placeholder="N° devis"
-          className="bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3
-            text-sm text-slate-200 placeholder-slate-600
-            focus:outline-none focus:border-emerald-500/60 transition-all col-span-2"
-        />
-        <div className="flex justify-between items-center px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl">
-          <span className="text-xs text-slate-400">TVA %</span>
+        <div>
+          <label htmlFor="devis-entreprise" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Votre entreprise</label>
           <input
+            id="devis-entreprise"
+            value={entreprise}
+            onChange={e => setEntreprise(e.target.value)}
+            placeholder="Ex: Mon Entreprise BTP"
+            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3
+              text-sm text-slate-200 placeholder-slate-600
+              focus:outline-none focus:border-emerald-500/60 transition-all"
+          />
+        </div>
+        <div>
+          <label htmlFor="devis-client" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Nom du client</label>
+          <input
+            id="devis-client"
+            value={client}
+            onChange={e => setClient(e.target.value)}
+            placeholder="Ex: Client SA"
+            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3
+              text-sm text-slate-200 placeholder-slate-600
+              focus:outline-none focus:border-emerald-500/60 transition-all"
+          />
+        </div>
+        <div className="col-span-2">
+          <label htmlFor="devis-num" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">N° devis</label>
+          <input
+            id="devis-num"
+            value={devisNum}
+            onChange={e => setDevisNum(e.target.value)}
+            placeholder="Ex: DEV-2026-001"
+            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 px-3
+              text-sm text-slate-200 placeholder-slate-600
+              focus:outline-none focus:border-emerald-500/60 transition-all"
+          />
+        </div>
+        <div className="flex justify-between items-center px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl">
+          <label htmlFor="devis-tva" className="text-xs text-slate-400">TVA %</label>
+          <input
+            id="devis-tva"
             type="number"
             min="0"
             max="100"
@@ -134,8 +147,10 @@ export default function DevisPage() {
           />
         </div>
         <div className="flex flex-col gap-1">
+          <label htmlFor="devis-remise" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Remise globale</label>
           <div className="flex gap-2">
             <input
+              id="devis-remise"
               type="number"
               min="0"
               step={remiseType === 'percent' ? 0.1 : 0.01}
@@ -146,15 +161,16 @@ export default function DevisPage() {
                 text-sm text-slate-200 font-bold focus:outline-none focus:border-emerald-500/60"
             />
             <select
+              id="devis-remise-type"
               value={remiseType}
               onChange={e => setRemiseType(e.target.value)}
+              aria-label="Type de remise (pourcentage ou montant)"
               className="bg-slate-900 border border-slate-700 rounded-xl py-2 px-2 text-sm text-slate-200"
             >
               <option value="percent">%</option>
               <option value="amount">€</option>
             </select>
           </div>
-          <span className="text-[10px] text-slate-500">Remise globale</span>
         </div>
       </div>
 
@@ -180,11 +196,13 @@ export default function DevisPage() {
                   </div>
                   <div className="flex items-center gap-1">
                     <button onClick={() => updateQty(s.id, -1)}
+                      aria-label="Diminuer la quantité"
                       className="w-6 h-6 flex items-center justify-center bg-slate-700 rounded text-slate-400 hover:text-white">
                       <Minus size={12} />
                     </button>
                     <span className="text-sm font-bold text-slate-200 w-8 text-center">{s.quantite}</span>
                     <button onClick={() => updateQty(s.id, 1)}
+                      aria-label="Augmenter la quantité"
                       className="w-6 h-6 flex items-center justify-center bg-slate-700 rounded text-slate-400 hover:text-white">
                       <Plus size={12} />
                     </button>
@@ -193,6 +211,7 @@ export default function DevisPage() {
                     {((parseFloat(s.prix_remise_ht)||0) * s.quantite).toFixed(2)}
                   </span>
                   <button onClick={() => removeProduct(s.id)}
+                    aria-label="Retirer ce produit du devis"
                     className="text-slate-600 hover:text-red-400 transition-colors">
                     <Trash2 size={14} />
                   </button>
@@ -218,8 +237,10 @@ export default function DevisPage() {
       )}
 
       <div className="relative mb-3">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+        <label htmlFor="devis-search" className="sr-only">Chercher un produit dans le catalogue</label>
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
         <input
+          id="devis-search"
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Chercher un produit..."

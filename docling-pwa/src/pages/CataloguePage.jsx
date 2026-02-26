@@ -120,6 +120,7 @@ export default function CataloguePage() {
   const [compareOpen, setCompareOpen]   = useState(false)
 
   const parentRef = useRef(null)
+  const compareTriggerRef = useRef(null)
 
   const fetchCatalogue = useCallback(async () => {
     setLoading(true)
@@ -217,6 +218,7 @@ export default function CataloguePage() {
             {/* Toggle view */}
             <button
               onClick={() => setView(v => v === 'cards' ? 'table' : 'cards')}
+              aria-label={view === 'cards' ? 'Passer en vue tableau' : 'Passer en vue cartes'}
               className="text-[10px] font-bold uppercase tracking-wider text-slate-500
                 hover:text-slate-300 bg-slate-800 px-2 py-1.5 rounded-lg border border-slate-700 transition-colors"
             >
@@ -225,6 +227,7 @@ export default function CataloguePage() {
 
             <button
               onClick={fetchCatalogue}
+              aria-label="Actualiser le catalogue"
               className="p-2 text-slate-500 hover:text-slate-300 bg-slate-800 rounded-lg border border-slate-700 transition-colors"
             >
               <RefreshCw size={14} />
@@ -251,6 +254,7 @@ export default function CataloguePage() {
             <select
               value={famille}
               onChange={e => setFamille(e.target.value)}
+              aria-label="Filtrer par famille"
               className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 pl-7 pr-2
                 text-xs text-slate-300 font-medium appearance-none
                 focus:outline-none focus:border-emerald-500/60 transition-all"
@@ -264,6 +268,7 @@ export default function CataloguePage() {
               <select
                 value={fournisseur}
                 onChange={e => setFournisseur(e.target.value)}
+                aria-label="Filtrer par fournisseur"
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2.5 pl-7 pr-2
                   text-xs text-slate-300 font-medium appearance-none
                   focus:outline-none focus:border-emerald-500/60 transition-all"
@@ -300,6 +305,7 @@ export default function CataloguePage() {
             CSV
           </button>
           <button
+            ref={compareTriggerRef}
             onClick={() => setCompareOpen(true)}
             className="flex items-center gap-1.5 px-3 py-2 bg-purple-700/30 hover:bg-purple-700/50
               text-purple-400 border border-purple-700/40 rounded-xl text-xs font-bold
@@ -428,6 +434,7 @@ export default function CataloguePage() {
       <CompareModal
         isOpen={compareOpen}
         onClose={() => setCompareOpen(false)}
+        triggerRef={compareTriggerRef}
       />
     </div>
   )

@@ -115,6 +115,7 @@ export default function HistoryPage() {
         </div>
         <button
           onClick={fetchData}
+          aria-label="Actualiser l'historique"
           className="p-2 text-slate-500 hover:text-slate-300 bg-slate-800 rounded-xl border border-slate-700 transition-colors"
         >
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />

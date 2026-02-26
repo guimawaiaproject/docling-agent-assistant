@@ -645,7 +645,7 @@ export default function ScanPage() {
                         )}
                       </div>
                       {(item.status === 'pending' || item.status === 'error') && (
-                        <button onClick={() => removeFromQueue(item.id)} className="text-slate-600 hover:text-red-400 transition-colors shrink-0">
+                        <button onClick={() => removeFromQueue(item.id)} aria-label="Retirer de la file" className="text-slate-600 hover:text-red-400 transition-colors shrink-0">
                           <X size={16} />
                         </button>
                       )}
@@ -678,6 +678,7 @@ export default function ScanPage() {
             whileTap={{ scale: 0.95 }}
             onClick={clearQueue}
             disabled={stats.running > 0}
+            aria-label="Vider la file"
             className="px-4 py-4 bg-slate-800 hover:bg-slate-700 disabled:opacity-40
               text-slate-400 rounded-2xl border border-slate-700 transition-colors"
           >

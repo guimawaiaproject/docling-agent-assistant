@@ -6,12 +6,56 @@ import { toast } from 'sonner'
 import apiClient from '../services/apiClient'
 import { ENDPOINTS } from '../config/api'
 
-export default function CompareModal({ isOpen, onClose, initialSearch = '' }) {
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+export default function CompareModal({ isOpen, onClose, triggerRef, initialSearch = '' }) {
   const [search, setSearch] = useState(initialSearch)
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const abortRef = useRef(null)
   const debounceRef = useRef(null)
+  const dialogRef = useRef(null)
+  const previousFocusRef = useRef(null)
+
+  useEffect(() => {
+    if (isOpen) {
+      previousFocusRef.current = triggerRef?.current ?? document.activeElement
+    }
+  }, [isOpen, triggerRef])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        onClose()
+        return
+      }
+      if (e.key === 'Tab') {
+        const dialog = dialogRef.current
+        if (!dialog) return
+        const focusable = [...dialog.querySelectorAll(FOCUSABLE)]
+        if (focusable.length === 0) return
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown, true)
+    return () => document.removeEventListener('keydown', handleKeyDown, true)
+  }, [isOpen, onClose])
+
+  useEffect(() => {
+    if (!isOpen) {
+      previousFocusRef.current?.focus?.()
+    }
+  }, [isOpen])
 
   useEffect(() => {
     return () => {
@@ -85,6 +129,10 @@ export default function CompareModal({ isOpen, onClose, initialSearch = '' }) {
         onClick={onClose}
       >
         <motion.div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="compare-modal-title"
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
@@ -94,9 +142,9 @@ export default function CompareModal({ isOpen, onClose, initialSearch = '' }) {
           <div className="flex items-center justify-between p-4 border-b border-slate-800">
             <div className="flex items-center gap-2">
               <BarChart3 size={18} className="text-emerald-400" />
-              <h2 className="text-lg font-black text-slate-100">Comparateur Prix</h2>
+              <h2 id="compare-modal-title" className="text-lg font-black text-slate-100">Comparateur Prix</h2>
             </div>
-            <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
+            <button onClick={onClose} aria-label="Fermer" className="text-slate-500 hover:text-slate-300 transition-colors">
               <X size={20} />
             </button>
           </div>
