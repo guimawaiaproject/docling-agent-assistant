@@ -22,8 +22,24 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
 asyncio_mode = "auto"
+timeout = 30
+log_cli = true
+log_cli_level = "INFO"
+log_format = "%(asctime)s %(levelname)s %(message)s"
+log_date_format = "%H:%M:%S"
+addopts = "--strict-markers -v --tb=short --durations=10 --capture=no"
+filterwarnings = [
+    "ignore::DeprecationWarning:faker",
+    "ignore::pytest.PytestConfigWarning",
+]
+markers = [
+    "slow: tests > 5 secondes",
+    "security: tests de sécurité",
+    "e2e: tests end-to-end (Playwright)",
+    "performance: tests de performance",
+    "external: tests avec services externes (Gemini, Storj)",
+]
 
 [tool.ruff]
 target-version = "py311"
