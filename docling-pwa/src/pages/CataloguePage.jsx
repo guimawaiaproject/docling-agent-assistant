@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import apiClient from '../services/apiClient'
 import { ENDPOINTS } from '../config/api'
 import CompareModal from '../components/CompareModal'
@@ -78,33 +78,51 @@ function exportCSV(data) {
   URL.revokeObjectURL(url)
 }
 
-// ─── Export Excel avec xlsx ─────────────────────────────────────────────────
-function exportExcel(data) {
-  const rows = data.map(p => ({
-    'Désignation FR':       p.designation_fr,
-    'Désignation RAW':      p.designation_raw,
-    'Famille':              p.famille,
-    'Fournisseur':          p.fournisseur,
-    'Unité':                p.unite,
-    'Prix Brut HT (€)':    parseFloat(p.prix_brut_ht) || 0,
-    'Remise (%)':           parseFloat(p.remise_pct) || 0,
-    'Prix Net HT (€)':     parseFloat(p.prix_remise_ht) || 0,
-    'Prix TTC IVA21% (€)': parseFloat(p.prix_ttc_iva21) || 0,
-    'N° Facture':           p.numero_facture,
-    'Date Facture':         p.date_facture,
-  }))
+// ─── Export Excel avec exceljs ─────────────────────────────────────────────
+async function exportExcel(data) {
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet('Catalogue BTP', {
+    views: [{ state: 'frozen', ySplit: 1 }],
+  })
 
-  const ws = XLSX.utils.json_to_sheet(rows)
-
-  // Largeurs colonnes
-  ws['!cols'] = [
-    {wch:40},{wch:40},{wch:16},{wch:22},{wch:8},
-    {wch:14},{wch:10},{wch:14},{wch:14},{wch:16},{wch:14}
+  worksheet.columns = [
+    { header: 'Désignation FR', key: 'designation_fr', width: 40 },
+    { header: 'Désignation RAW', key: 'designation_raw', width: 40 },
+    { header: 'Famille', key: 'famille', width: 16 },
+    { header: 'Fournisseur', key: 'fournisseur', width: 22 },
+    { header: 'Unité', key: 'unite', width: 8 },
+    { header: 'Prix Brut HT (€)', key: 'prix_brut_ht', width: 14 },
+    { header: 'Remise (%)', key: 'remise_pct', width: 10 },
+    { header: 'Prix Net HT (€)', key: 'prix_remise_ht', width: 14 },
+    { header: 'Prix TTC IVA21% (€)', key: 'prix_ttc_iva21', width: 14 },
+    { header: 'N° Facture', key: 'numero_facture', width: 16 },
+    { header: 'Date Facture', key: 'date_facture', width: 14 },
   ]
 
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Catalogue BTP')
-  XLSX.writeFile(wb, `catalogue_btp_${new Date().toISOString().slice(0,10)}.xlsx`)
+  const rows = data.map(p => ({
+    designation_fr: p.designation_fr,
+    designation_raw: p.designation_raw,
+    famille: p.famille,
+    fournisseur: p.fournisseur,
+    unite: p.unite,
+    prix_brut_ht: parseFloat(p.prix_brut_ht) || 0,
+    remise_pct: parseFloat(p.remise_pct) || 0,
+    prix_remise_ht: parseFloat(p.prix_remise_ht) || 0,
+    prix_ttc_iva21: parseFloat(p.prix_ttc_iva21) || 0,
+    numero_facture: p.numero_facture,
+    date_facture: p.date_facture,
+  }))
+
+  worksheet.addRows(rows)
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `catalogue_btp_${new Date().toISOString().slice(0, 10)}.xlsx`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 export default function CataloguePage() {
@@ -287,7 +305,7 @@ export default function CataloguePage() {
         {/* Export buttons */}
         <div className="flex gap-2 mt-2">
           <button
-            onClick={() => { exportExcel(filtered); toast.success('Export Excel téléchargé') }}
+            onClick={async () => { await exportExcel(filtered); toast.success('Export Excel téléchargé') }}
             disabled={filtered.length === 0}
             className="flex items-center gap-1.5 px-3 py-2 bg-emerald-700/30 hover:bg-emerald-700/50
               text-emerald-400 border border-emerald-700/40 rounded-xl text-xs font-bold
