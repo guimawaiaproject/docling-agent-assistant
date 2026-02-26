@@ -21,7 +21,7 @@ export default function DevisPage() {
   const fetchProducts = useCallback(async () => {
     setLoading(true)
     try {
-      const { data } = await apiClient.get(ENDPOINTS.catalogue)
+      const { data } = await apiClient.get(ENDPOINTS.catalogue, { params: { limit: 500 } })
       setAllProducts(Array.isArray(data) ? data : (data.products || []))
     } catch {
       toast.error('Impossible de charger le catalogue')
