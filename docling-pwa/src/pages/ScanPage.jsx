@@ -139,6 +139,10 @@ export default function ScanPage() {
         await removePendingUpload(item.id)
         toast.success(`${item.fileName} synchronisé`)
       } catch (err) {
+        if (err.response?.status === 401) {
+          toast.error('Reconnectez-vous pour synchroniser vos fichiers en attente')
+          break
+        }
         toast.error(`Erreur sync ${item.fileName}: ${err.message}`)
       }
     }
