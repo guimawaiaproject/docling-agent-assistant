@@ -131,7 +131,6 @@ export default function CataloguePage() {
   const [sortDir,     setSortDir]       = useState('asc')
   const [view,        setView]          = useState('cards')
   const [compareOpen, setCompareOpen]   = useState(false)
-  const [compareSearch] = useState('')
 
   const parentRef = useRef(null)
 
@@ -442,7 +441,6 @@ export default function CataloguePage() {
       <CompareModal
         isOpen={compareOpen}
         onClose={() => setCompareOpen(false)}
-        initialSearch={compareSearch}
       />
     </div>
   )
