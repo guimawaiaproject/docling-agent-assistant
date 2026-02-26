@@ -326,11 +326,15 @@ async def save_batch(payload: BatchSaveRequest, _user: dict = Depends(get_curren
     depuis la ValidationPage PWA et les insère dans Neon.
     """
     try:
-        nb_saved = await DBManager.upsert_products_batch(
+        nb_saved, historique_failures = await DBManager.upsert_products_batch(
             payload.produits,
             source=payload.source
         )
-        return {"saved": nb_saved, "total": len(payload.produits)}
+        resp = {"saved": nb_saved, "total": len(payload.produits)}
+        if historique_failures > 0:
+            resp["partial_success"] = True
+            resp["historique_errors"] = historique_failures
+        return resp
     except Exception as e:
         logger.error("Erreur batch save", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")

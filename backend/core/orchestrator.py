@@ -84,13 +84,19 @@ class Orchestrator:
 
         # ── 4+5. BDD + S3 en parallèle ─────────────────────────────
         products_dicts = [p.model_dump() for p in result.produits]
-        nb_saved, pdf_url = await asyncio.gather(
+        (nb_saved, historique_failures), pdf_url = await asyncio.gather(
             DBManager.upsert_products_batch(products_dicts, source=source),
             asyncio.to_thread(
                 StorageService.upload_file,
                 file_bytes, filename, content_type=mime_type,
             ),
         )
+        if historique_failures > 0:
+            logger.warning(
+                "%s: %d insertion(s) prix_historique en échec",
+                filename,
+                historique_failures,
+            )
 
         # ── 6. Historique ─────────────────────────────────────────
         cout_usd = (result.tokens_used / 1_000_000) * COST_PER_MILLION.get(model_id, 0.50)

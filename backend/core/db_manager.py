@@ -152,21 +152,25 @@ class DBManager:
             await conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC);
             """)
+            await conn.execute("""
+                ALTER TABLE jobs ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+            """)
             logger.info("Migrations auto OK")
 
     @classmethod
     async def upsert_product(cls, product: dict, source: str = "pc") -> bool:
-        """Upsert un seul produit. D\u00e9l\u00e8gue au batch."""
-        await cls.upsert_products_batch([product], source=source)
-        return True
+        """Upsert un seul produit. Délègue au batch."""
+        count, _ = await cls.upsert_products_batch([product], source=source)
+        return count > 0
 
     @classmethod
     async def upsert_products_batch(
         cls, products: list[dict], source: str = "pc"
-    ) -> int:
-        """Ins\u00e8re/met \u00e0 jour une liste de produits dans une transaction."""
+    ) -> tuple[int, int]:
+        """Insère/met à jour une liste de produits. Retourne (count, historique_failures)."""
         pool = await cls.get_pool()
         count = 0
+        historique_failures = 0
         async with pool.acquire() as conn:
             async with conn.transaction():
                 for product in products:
@@ -191,10 +195,17 @@ class DBManager:
                                     float(product.get("remise_pct") or 0),
                                 )
                             except Exception as e:
-                                logger.warning("Erreur insertion prix_historique: %s", e)
+                                historique_failures += 1
+                                logger.warning(
+                                    "Erreur insertion prix_historique produit_id=%s designation=%s: %s",
+                                    result["id"],
+                                    product.get("designation_raw", ""),
+                                    e,
+                                    exc_info=True,
+                                )
                     except Exception as e:
                         logger.warning(f"Upsert ignor\u00e9 pour {product.get('designation_raw')}: {e}")
-        return count
+        return count, historique_failures
 
     @classmethod
     async def get_catalogue(

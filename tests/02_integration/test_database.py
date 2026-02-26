@@ -46,7 +46,7 @@ async def test_upsert_products_batch_real_db(
     except RuntimeError:
         pytest.skip("DATABASE_URL non définie")
 
-    nb_saved = await DBManager.upsert_products_batch(
+    nb_saved, _ = await DBManager.upsert_products_batch(
         sample_products,
         source="pc",
     )
