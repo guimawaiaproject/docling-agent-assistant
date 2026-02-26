@@ -8,6 +8,8 @@ import { ENDPOINTS } from '../config/api'
 import { useDoclingStore } from '../store/useStore'
 import { FAMILLES } from '../constants/categories'
 
+const TVA_RATE = parseFloat(import.meta.env.VITE_TVA_RATE || '0.21')
+
 export default function ValidationPage() {
   const navigate = useNavigate()
 
@@ -113,7 +115,7 @@ export default function ValidationPage() {
         <AnimatePresence>
           {products.map((p, i) => {
             const isLow   = p.confidence === 'low'
-            const prixTTC = (parseFloat(p.prix_remise_ht) || 0) * 1.21
+            const prixTTC = (parseFloat(p.prix_remise_ht) || 0) * (1 + TVA_RATE)
 
             return (
               <motion.div
@@ -242,7 +244,7 @@ export default function ValidationPage() {
                     {p.numero_facture ? `#${p.numero_facture}` : ''} {p.date_facture || ''}
                   </span>
                   <div className="text-right">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase">TTC +21%</span>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">TTC +{(TVA_RATE * 100).toFixed(0)}%</span>
                     <span className="ml-1.5 text-sm font-black text-slate-300">{prixTTC.toFixed(2)} \u20ac</span>
                   </div>
                 </div>
