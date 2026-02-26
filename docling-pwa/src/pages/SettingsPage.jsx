@@ -183,8 +183,8 @@ export default function SettingsPage() {
             {sync.folder && (
               <p className="text-xs text-slate-500 font-mono truncate">{sync.folder}</p>
             )}
-            {sync.files_processed != null && (
-              <p className="text-xs text-slate-500 mt-1">{sync.files_processed} fichiers trait\u00e9s</p>
+            {sync.total_processed != null && (
+              <p className="text-xs text-slate-500 mt-1">{sync.total_processed} fichiers trait\u00e9s</p>
             )}
           </div>
         </section>
