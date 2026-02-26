@@ -14,6 +14,7 @@ Pillow==10.4.0
 
 # --- Validation donnees ---
 pydantic==2.9.2
+pydantic-settings>=2.5.0
 
 # --- Watchdog dossier magique ---
 watchdog==5.0.3
