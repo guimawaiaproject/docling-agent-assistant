@@ -19,11 +19,17 @@ venv/
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Node
+node_modules/
+docling-pwa/node_modules/
+**/node_modules/
 
 # Build & cache
 build/
