@@ -269,7 +269,10 @@ export default function ScanPage() {
       }
       throw new Error("Timeout : l'analyse prend trop de temps")
     } catch (err) {
-      if (err.name === 'CanceledError' || ctrl.signal.aborted) return
+      if (err.name === 'CanceledError' || ctrl.signal.aborted) {
+        updateItem(item.id, { status: 'pending', progress: 0 })
+        return
+      }
       updateItem(item.id, { status: 'error', progress: 0, error: err.message || 'Erreur inconnue' })
     }
   }
