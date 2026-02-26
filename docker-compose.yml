@@ -1,38 +1,60 @@
-# docker-compose.yml — Docling Agent Premium
 version: "3.9"
 
 services:
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: [ "streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0" ]
-    ports:
-      - "8501:8501"
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
     environment:
-      - API_URL=http://api:8000
-    depends_on:
-      api:
-        condition: service_healthy
-    volumes:
-      - ./app.py:/app/app.py
-
-  api:
-    build: .
+      POSTGRES_USER: ${POSTGRES_USER:-docling}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-docling}
+      POSTGRES_DB: ${POSTGRES_DB:-docling}
     ports:
-      - "8000:8000"
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - WATCHDOG_FOLDER=/app/Docling_Factures
+      - "5432:5432"
     volumes:
-      - docling_data:/app/data # Persist SQLite locally
-      - ./backend:/app/backend # Hot reload in dev
-      - ./Docling_Factures:/app/Docling_Factures # Dossier Magique Local <-> Container
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-docling}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - docling-net
+
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-docling}:${POSTGRES_PASSWORD:-docling}@postgres:5432/${POSTGRES_DB:-docling}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - docling-net
+
+  pwa:
+    image: node:20-slim
+    working_dir: /app
+    command: sh -c "npm install && npx vite --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./docling-pwa:/app
+      - pwa_node_modules:/app/node_modules
+    environment:
+      VITE_API_URL: http://localhost:8000
+    depends_on:
+      - api
+    networks:
+      - docling-net
 
 volumes:
-  docling_data:
+  pgdata:
+  pwa_node_modules:
+
+networks:
+  docling-net:
+    driver: bridge
