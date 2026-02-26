@@ -83,7 +83,7 @@ export default function DevisPage() {
         remiseType,
       })
       setDevisNum(getNextDevisNum())
-      toast.success(`Devis ${num} genere !`)
+      toast.success(`Devis ${num} généré !`)
     } catch (err) {
       toast.error(`Erreur PDF : ${err.message}`)
     }
@@ -93,7 +93,7 @@ export default function DevisPage() {
     <div className="p-5 min-h-screen bg-slate-950 pb-28">
       <div className="pt-4 pb-5">
         <h1 className="text-2xl font-black text-slate-100 tracking-tight">Devis</h1>
-        <p className="text-xs text-slate-500 mt-0.5">Generez un devis PDF depuis votre catalogue</p>
+        <p className="text-xs text-slate-500 mt-0.5">Générez un devis PDF depuis votre catalogue</p>
       </div>
 
       <div className="grid grid-cols-2 gap-2 mb-4">
@@ -177,7 +177,7 @@ export default function DevisPage() {
       {selected.length > 0 && (
         <div className="mb-5 bg-slate-900 border border-slate-800 rounded-2xl p-4">
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">
-            Produits selectionnes ({selected.length})
+            Produits sélectionnés ({selected.length})
           </p>
           <div className="space-y-2">
             <AnimatePresence>
@@ -231,7 +231,7 @@ export default function DevisPage() {
               text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors"
           >
             <FileText size={16} />
-            Generer le devis PDF
+            Générer le devis PDF
           </button>
         </div>
       )}
