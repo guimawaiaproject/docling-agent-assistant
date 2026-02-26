@@ -191,8 +191,8 @@ class DBManager:
                                     float(product.get("prix_brut_ht") or 0),
                                     float(product.get("remise_pct") or 0),
                                 )
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.warning("Erreur insertion prix_historique: %s", e)
                     except Exception as e:
                         logger.warning(f"Upsert ignor\u00e9 pour {product.get('designation_raw')}: {e}")
         return count
