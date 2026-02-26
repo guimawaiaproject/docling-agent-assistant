@@ -539,7 +539,13 @@ async def root():
 # ─── Health check ─────────────────────────────────────────────────────────────
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "3.0.0"}
+    try:
+        pool = await DBManager.get_pool()
+        async with pool.acquire() as conn:
+            await conn.fetchval("SELECT 1")
+        return {"status": "ok", "db": "connected", "version": "3.0.0"}
+    except Exception:
+        raise HTTPException(status_code=503, detail="Database unreachable")
 
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
