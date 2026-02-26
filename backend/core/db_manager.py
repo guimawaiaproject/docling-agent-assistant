@@ -44,6 +44,13 @@ _UPSERT_SQL = """
 """
 
 
+def _escape_like(term: str) -> str:
+    """Échappe % et _ pour usage dans ILIKE (PostgreSQL)."""
+    if not term:
+        return term
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _safe_float(val: Any, default: float = 0.0) -> float:
     """Convertit en float sans lever d'exception. Gère None, chaînes invalides."""
     if val is None:
