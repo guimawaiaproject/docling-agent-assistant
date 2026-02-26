@@ -211,7 +211,8 @@ async def process_invoice(
     file_bytes = b"".join(chunks)
 
     job_id = str(uuid.uuid4())
-    await DBManager.create_job(job_id, "processing")
+    user_id = int(_user["sub"]) if _user.get("sub") else None
+    await DBManager.create_job(job_id, "processing", user_id=user_id)
 
     background_tasks.add_task(
         _run_extraction, job_id, file_bytes, filename, model, source
@@ -262,7 +263,8 @@ async def _run_extraction(
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/api/v1/invoices/status/{job_id}")
 async def get_job_status(job_id: str, _user: dict = Depends(get_current_user)):
-    job = await DBManager.get_job(job_id)
+    user_id = int(_user["sub"]) if _user.get("sub") else None
+    job = await DBManager.get_job(job_id, user_id=user_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job introuvable")
     return job

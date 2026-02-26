@@ -369,14 +369,16 @@ class DBManager:
             return row["id"]
 
     @classmethod
-    async def create_job(cls, job_id: str, status: str = "processing") -> None:
-        """Crée un job en base pour persistance."""
+    async def create_job(
+        cls, job_id: str, status: str = "processing", user_id: int | None = None
+    ) -> None:
+        """Crée un job en base pour persistance. user_id requis pour isolation multi-tenant."""
         pool = await cls.get_pool()
         async with pool.acquire() as conn:
             await conn.execute("""
-                INSERT INTO jobs (job_id, status)
-                VALUES ($1::uuid, $2)
-            """, job_id, status)
+                INSERT INTO jobs (job_id, status, user_id)
+                VALUES ($1::uuid, $2, $3)
+            """, job_id, status, user_id)
 
     @classmethod
     async def update_job(
@@ -397,15 +399,15 @@ class DBManager:
             """, job_id, status, result_json, error)
 
     @classmethod
-    async def get_job(cls, job_id: str) -> dict | None:
-        """Récupère un job par son id. Retourne None si introuvable."""
+    async def get_job(cls, job_id: str, user_id: int | None = None) -> dict | None:
+        """Récupère un job par son id. Filtre par user_id pour isolation multi-tenant."""
         pool = await cls.get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow("""
                 SELECT status, result, error, created_at, updated_at
                 FROM jobs
-                WHERE job_id = $1::uuid
-            """, job_id)
+                WHERE job_id = $1::uuid AND user_id = $2
+            """, job_id, user_id)
             if not row:
                 return None
             result = row["result"]
