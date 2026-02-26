@@ -9,8 +9,6 @@ Optimisations 2026 :
 
 import asyncio
 import logging
-import mimetypes
-from typing import Optional
 
 from backend.core.db_manager import DBManager
 from backend.services.facturx_extractor import extract_from_facturx_pdf
