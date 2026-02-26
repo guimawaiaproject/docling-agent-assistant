@@ -44,6 +44,16 @@ _UPSERT_SQL = """
 """
 
 
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    """Convertit en float sans lever d'exception. Gère None, chaînes invalides."""
+    if val is None:
+        return default
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return default
+
+
 def _parse_date(val) -> date | None:
     if val is None:
         return None
@@ -69,10 +79,10 @@ def _upsert_params(product: dict, source: str) -> tuple:
         product.get("designation_fr", ""),
         product.get("famille", "Autre"),
         product.get("unite", "unit\u00e9"),
-        float(product.get("prix_brut_ht") or 0),
-        float(product.get("remise_pct") or 0),
-        float(product.get("prix_remise_ht") or 0),
-        float(product.get("prix_ttc_iva21") or 0),
+        _safe_float(product.get("prix_brut_ht")),
+        _safe_float(product.get("remise_pct")),
+        _safe_float(product.get("prix_remise_ht")),
+        _safe_float(product.get("prix_ttc_iva21")),
         product.get("numero_facture"),
         _parse_date(product.get("date_facture")),
         product.get("confidence", "high"),
@@ -143,7 +153,7 @@ class DBManager:
                             *_upsert_params(product, source)
                         )
                         count += 1
-                        if result and float(product.get("prix_remise_ht") or 0) > 0:
+                        if result and _safe_float(product.get("prix_remise_ht")) > 0:
                             try:
                                 await conn.execute("""
                                     INSERT INTO prix_historique
@@ -153,9 +163,9 @@ class DBManager:
                                     result["id"],
                                     product.get("fournisseur", ""),
                                     product.get("designation_fr", ""),
-                                    float(product.get("prix_remise_ht") or 0),
-                                    float(product.get("prix_brut_ht") or 0),
-                                    float(product.get("remise_pct") or 0),
+                                    _safe_float(product.get("prix_remise_ht")),
+                                    _safe_float(product.get("prix_brut_ht")),
+                                    _safe_float(product.get("remise_pct")),
                                 )
                             except Exception as e:
                                 historique_failures += 1
