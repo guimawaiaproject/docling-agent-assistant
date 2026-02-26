@@ -113,6 +113,20 @@ class _GeminiCircuitBreaker:
 _gemini_cb = _GeminiCircuitBreaker(threshold=5)
 
 
+def _sanitize_job_error(err: Exception, tripped: bool = False) -> str:
+    """Mappe les erreurs techniques vers des messages utilisateur sûrs."""
+    msg = str(err).lower()
+    if tripped:
+        return "Service d'extraction temporairement indisponible. Réessayez dans quelques minutes."
+    if "429" in msg or "resource_exhausted" in msg or "rate" in msg or "quota" in msg:
+        return "Quota API dépassé. Réessayez plus tard."
+    if "401" in msg or "403" in msg or "invalid" in msg and "key" in msg or "api_key" in msg:
+        return "Clé API invalide ou inexistante."
+    if "timeout" in msg or "timed out" in msg:
+        return "Délai d'attente dépassé. Réessayez."
+    return "Erreur lors de l'extraction. Réessayez ou contactez le support."
+
+
 # ─── Lifespan ─────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -261,9 +275,8 @@ async def _run_extraction(
                     "Job marque en erreur, les autres jobs continuent.",
                     _gemini_cb.threshold,
                 )
-            err_msg = str(e)
-            if tripped:
-                err_msg += f" (Gemini indisponible apres {_gemini_cb.threshold} echecs consecutifs)"
+            logger.error("Erreur extraction %s: %s", filename, e, exc_info=True)
+            err_msg = _sanitize_job_error(e, tripped=tripped)
             await DBManager.update_job(
                 job_id, "error", result=None, error=err_msg
             )
