@@ -106,56 +106,19 @@ class DBManager:
 
     @classmethod
     async def run_migrations(cls) -> None:
-        """Ajoute les colonnes/tables manquantes sans casser l'existant."""
-        pool = await cls.get_pool()
-        async with pool.acquire() as conn:
-            await conn.execute("""
-                ALTER TABLE factures ADD COLUMN IF NOT EXISTS pdf_url TEXT;
-            """)
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS prix_historique (
-                    id          SERIAL PRIMARY KEY,
-                    produit_id  INTEGER REFERENCES produits(id) ON DELETE CASCADE,
-                    fournisseur VARCHAR(200) NOT NULL,
-                    designation_fr TEXT NOT NULL,
-                    prix_ht     NUMERIC(10,4) NOT NULL,
-                    prix_brut   NUMERIC(10,4),
-                    remise_pct  NUMERIC(5,2) DEFAULT 0,
-                    facture_id  INTEGER REFERENCES factures(id) ON DELETE SET NULL,
-                    recorded_at TIMESTAMPTZ DEFAULT NOW()
-                );
-            """)
-            await conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_prixhist_produit
-                    ON prix_historique(produit_id, recorded_at DESC);
-            """)
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id            SERIAL PRIMARY KEY,
-                    email         VARCHAR(255) UNIQUE NOT NULL,
-                    password_hash TEXT NOT NULL,
-                    display_name  VARCHAR(200),
-                    role          VARCHAR(20) DEFAULT 'user',
-                    created_at    TIMESTAMPTZ DEFAULT NOW()
-                );
-            """)
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS jobs (
-                    job_id     UUID PRIMARY KEY,
-                    status     VARCHAR(20) DEFAULT 'processing',
-                    result     JSONB,
-                    error      TEXT,
-                    created_at TIMESTAMPTZ DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ DEFAULT NOW()
-                );
-            """)
-            await conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC);
-            """)
-            await conn.execute("""
-                ALTER TABLE jobs ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
-            """)
-            logger.info("Migrations auto OK")
+        """Exécute les migrations Alembic. Les schémas sont versionnés dans migrations/versions/."""
+        import asyncio
+        import os
+
+        def _run_alembic_upgrade() -> None:
+            from alembic import command
+            from alembic.config import Config
+            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            config = Config(os.path.join(root, "alembic.ini"))
+            command.upgrade(config, "head")
+
+        await asyncio.to_thread(_run_alembic_upgrade)
+        logger.info("Migrations Alembic OK")
 
     @classmethod
     async def upsert_product(cls, product: dict, source: str = "pc") -> bool:
