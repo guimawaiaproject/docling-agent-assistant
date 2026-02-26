@@ -102,19 +102,6 @@ function exportExcel(data) {
     {wch:14},{wch:10},{wch:14},{wch:14},{wch:16},{wch:14}
   ]
 
-  // Style header (fond sombre) — xlsx vanilla
-  const range = XLSX.utils.decode_range(ws['!ref'])
-  for (let C = range.s.c; C <= range.e.c; C++) {
-    const cell = ws[XLSX.utils.encode_cell({ r: 0, c: C })]
-    if (cell) {
-      cell.s = {
-        font:    { bold: true, color: { rgb: 'FFFFFF' } },
-        fill:    { fgColor: { rgb: '0F172A' } },
-        alignment: { horizontal: 'center' }
-      }
-    }
-  }
-
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Catalogue BTP')
   XLSX.writeFile(wb, `catalogue_btp_${new Date().toISOString().slice(0,10)}.xlsx`)
