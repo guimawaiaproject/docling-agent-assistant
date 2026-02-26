@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { AlertCircle, CheckCircle2, Maximize2, Trash2, X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import apiClient from '../services/apiClient'
@@ -19,6 +19,14 @@ export default function ValidationPage() {
 
   const [isSaving, setIsSaving]       = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape' && lightboxOpen) setLightboxOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [lightboxOpen])
 
   if (!products || products.length === 0) {
     return <Navigate to="/scan" replace />
@@ -51,6 +59,9 @@ export default function ValidationPage() {
       <AnimatePresence>
         {lightboxOpen && currentInvoiceUrl && (
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Aperçu facture en grand format"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -67,6 +78,7 @@ export default function ValidationPage() {
             />
             <button
               onClick={() => setLightboxOpen(false)}
+              aria-label="Fermer l'aperçu"
               className="absolute top-6 right-6 p-2 bg-slate-800/80 rounded-full text-white hover:bg-slate-700"
             >
               <X size={24} />
@@ -124,7 +136,9 @@ export default function ValidationPage() {
 
                 {/* Row 1: Designation + delete */}
                 <div className="flex items-start gap-2 mb-3">
+                  <label htmlFor={`val-designation-${i}`} className="sr-only">Désignation produit</label>
                   <input
+                    id={`val-designation-${i}`}
                     value={p.designation_fr || ''}
                     onChange={e => updateProduct(i, 'designation_fr', e.target.value)}
                     placeholder="D\u00e9signation produit"
@@ -133,6 +147,7 @@ export default function ValidationPage() {
                   />
                   <button
                     onClick={() => handleRemove(i)}
+                    aria-label="Supprimer ce produit"
                     className="shrink-0 p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                   >
                     <Trash2 size={16} />
@@ -142,8 +157,9 @@ export default function ValidationPage() {
                 {/* Row 2: Fournisseur + Famille */}
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Fournisseur</label>
+                    <label htmlFor={`val-fournisseur-${i}`} className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Fournisseur</label>
                     <input
+                      id={`val-fournisseur-${i}`}
                       value={p.fournisseur || ''}
                       onChange={e => updateProduct(i, 'fournisseur', e.target.value)}
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2
@@ -151,8 +167,9 @@ export default function ValidationPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Famille</label>
+                    <label htmlFor={`val-famille-${i}`} className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Famille</label>
                     <select
+                      id={`val-famille-${i}`}
                       value={p.famille || ''}
                       onChange={e => updateProduct(i, 'famille', e.target.value)}
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2
@@ -166,9 +183,10 @@ export default function ValidationPage() {
                 {/* Row 3: Prix brut + Remise + Prix remise + Unite */}
                 <div className="grid grid-cols-4 gap-2 mb-3">
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Brut HT</label>
+                    <label htmlFor={`val-brut-${i}`} className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Brut HT</label>
                     <div className="relative">
                       <input
+                        id={`val-brut-${i}`}
                         type="number" step="0.01"
                         value={p.prix_brut_ht || ''}
                         onChange={e => updateProduct(i, 'prix_brut_ht', parseFloat(e.target.value) || 0)}
@@ -179,9 +197,10 @@ export default function ValidationPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Remise</label>
+                    <label htmlFor={`val-remise-${i}`} className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Remise</label>
                     <div className="relative">
                       <input
+                        id={`val-remise-${i}`}
                         type="number" step="0.5"
                         value={p.remise_pct || ''}
                         onChange={e => updateProduct(i, 'remise_pct', parseFloat(e.target.value) || 0)}
@@ -192,9 +211,10 @@ export default function ValidationPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Net HT</label>
+                    <label htmlFor={`val-net-${i}`} className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Net HT</label>
                     <div className="relative">
                       <input
+                        id={`val-net-${i}`}
                         type="number" step="0.01"
                         value={p.prix_remise_ht || ''}
                         onChange={e => updateProduct(i, 'prix_remise_ht', parseFloat(e.target.value) || 0)}
@@ -205,8 +225,9 @@ export default function ValidationPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Unit\u00e9</label>
+                    <label htmlFor={`val-unite-${i}`} className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Unit\u00e9</label>
                     <input
+                      id={`val-unite-${i}`}
                       value={p.unite || ''}
                       onChange={e => updateProduct(i, 'unite', e.target.value)}
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2 py-2
