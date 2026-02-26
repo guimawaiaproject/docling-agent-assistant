@@ -27,42 +27,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
-        runtimeCaching: [
-          {
-            urlPattern: /\/api\/v1\/catalogue/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'catalogue-cache',
-              expiration: { maxAgeSeconds: 3600, maxEntries: 50 }
-            }
-          },
-          {
-            urlPattern: /\/api\/v1\/stats/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'stats-cache',
-              expiration: { maxAgeSeconds: 300, maxEntries: 5 },
-              networkTimeoutSeconds: 5
-            }
-          },
-          {
-            urlPattern: /\/api\/v1\/history/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'history-cache',
-              expiration: { maxAgeSeconds: 300, maxEntries: 5 },
-              networkTimeoutSeconds: 5
-            }
-          },
-          {
-            urlPattern: /\/api\/v1\/catalogue\/fournisseurs/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'fournisseurs-cache',
-              expiration: { maxAgeSeconds: 3600, maxEntries: 5 }
-            }
-          }
-        ]
+        // Aucun cache pour /api/v1/* — endpoints authentifiés, pas de cache Workbox
+        runtimeCaching: []
       }
     })
   ],
