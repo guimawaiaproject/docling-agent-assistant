@@ -31,7 +31,7 @@ export const useDoclingStore = create(
         setJobComplete: (products, source = 'pc') => set({
           extractedProducts: (products || []).map((p, i) => ({
             ...p,
-            _key: p.id ?? p._key ?? `val-${(p.designation_raw || p.designation_fr || '').slice(0, 30)}-${(p.fournisseur || '').slice(0, 20)}-${i}-${Date.now()}`
+            _key: p.id ?? p._key ?? `val-${(p.designation_raw || p.designation_fr || '').slice(0, 30)}-${(p.fournisseur || '').slice(0, 20)}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
           })),
           currentJob: null,
           pendingSource: source

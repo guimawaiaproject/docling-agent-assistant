@@ -121,7 +121,7 @@ export default function ValidationPage() {
 
             return (
               <motion.div
-                key={p._key ?? p.id ?? `val-${(p.designation_fr || p.fournisseur || '').slice(0, 30)}-${i}`}
+                key={p._key ?? p.id ?? `val-${(p.designation_fr || p.fournisseur || '').slice(0, 30)}-${String(p.prix_remise_ht ?? 0)}-${String(p.prix_brut_ht ?? 0)}`}
                 layout
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}

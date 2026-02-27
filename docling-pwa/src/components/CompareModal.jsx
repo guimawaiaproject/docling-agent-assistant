@@ -222,7 +222,7 @@ export default function CompareModal({ isOpen, onClose, triggerRef, initialSearc
 
                 return (
                   <motion.div
-                    key={`${(r.fournisseur || '')}-${(r.designation_fr || '').slice(0, 50)}-${r.prix_remise_ht ?? 0}-${i}`}
+                    key={r.id ?? `comp-${(r.fournisseur || '')}-${(r.designation_fr || '').slice(0, 50)}-${r.prix_remise_ht ?? 0}`}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.03 }}
