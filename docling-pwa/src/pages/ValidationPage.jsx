@@ -38,7 +38,8 @@ export default function ValidationPage() {
   const handleValidate = async () => {
     setIsSaving(true)
     try {
-      await apiClient.post(ENDPOINTS.batch, { produits: products, source: pendingSource })
+      const source = pendingSource ?? (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'mobile' : 'pc')
+      await apiClient.post(ENDPOINTS.batch, { produits: products, source })
       clearJob()
       if (navigator.vibrate) navigator.vibrate([100, 50, 100])
       toast.success(`${products.length} produits enregistr\u00e9s dans le catalogue`)
@@ -178,6 +179,7 @@ export default function ValidationPage() {
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2
                         text-sm text-slate-200 font-medium focus:outline-none focus:border-emerald-500"
                     >
+                      <option value="">— Choisir une famille —</option>
                       {FAMILLES.map(f => <option key={f} value={f}>{f}</option>)}
                     </select>
                   </div>

@@ -12,6 +12,16 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;     -- Recherche floue ES/CA/FR
 -- DROP TABLE IF EXISTS produits CASCADE;
 -- DROP TABLE IF EXISTS fournisseurs CASCADE;
 
+-- ─── Utilisateurs (multi-tenant — doit précéder produits/factures/jobs) ─
+CREATE TABLE IF NOT EXISTS users (
+  id            SERIAL PRIMARY KEY,
+  email         VARCHAR(255) UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  display_name  VARCHAR(200),
+  role          VARCHAR(20) DEFAULT 'user',   -- user | admin
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ─── Fournisseurs ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS fournisseurs (
   id         SERIAL PRIMARY KEY,
@@ -24,6 +34,7 @@ CREATE TABLE IF NOT EXISTS fournisseurs (
 -- ─── Produits ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS produits (
   id               SERIAL PRIMARY KEY,
+  user_id          INTEGER REFERENCES users(id) ON DELETE CASCADE,
   fournisseur      VARCHAR(200) NOT NULL,
   designation_raw  TEXT         NOT NULL,  -- Original CA/ES
   designation_fr   TEXT         NOT NULL,  -- Traduit FR
@@ -40,13 +51,14 @@ CREATE TABLE IF NOT EXISTS produits (
   created_at       TIMESTAMPTZ   DEFAULT NOW(),
   updated_at       TIMESTAMPTZ   DEFAULT NOW(),
 
-  -- Anti-doublon : même désignation originale + même fournisseur = upsert prix
-  UNIQUE(designation_raw, fournisseur)
+  -- Anti-doublon : même désignation originale + même fournisseur + user = upsert prix
+  UNIQUE(designation_raw, fournisseur, user_id)
 );
 
 -- ─── Jobs (extraction async, persistance pour survie redémarrage) ─
 CREATE TABLE IF NOT EXISTS jobs (
   job_id     UUID PRIMARY KEY,
+  user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
   status     VARCHAR(20) DEFAULT 'processing',  -- processing | completed | error
   result     JSONB,
   error      TEXT,
@@ -58,6 +70,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC);
 -- ─── Factures (historique audit) ──────────────────────────────
 CREATE TABLE IF NOT EXISTS factures (
   id                  SERIAL PRIMARY KEY,
+  user_id             INTEGER REFERENCES users(id) ON DELETE CASCADE,
   filename            VARCHAR(500),
   statut              VARCHAR(20)  DEFAULT 'traite',  -- traite | erreur | en_cours
   nb_produits_extraits INTEGER     DEFAULT 0,
@@ -69,6 +82,14 @@ CREATE TABLE IF NOT EXISTS factures (
 );
 
 -- ─── Index performances ────────────────────────────────────────
+
+-- Multi-tenant : filtre user_id
+CREATE INDEX IF NOT EXISTS idx_produits_user_id ON produits(user_id);
+CREATE INDEX IF NOT EXISTS idx_produits_user_famille ON produits(user_id, famille);
+CREATE INDEX IF NOT EXISTS idx_produits_user_fournisseur ON produits(user_id, fournisseur);
+CREATE INDEX IF NOT EXISTS idx_factures_user_id ON factures(user_id);
+CREATE INDEX IF NOT EXISTS idx_factures_user_date ON factures(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_user_id ON jobs(user_id);
 
 -- Filtre famille (le plus utilisé)
 CREATE INDEX IF NOT EXISTS idx_produits_famille
@@ -131,13 +152,3 @@ CREATE TABLE IF NOT EXISTS prix_historique (
 
 CREATE INDEX IF NOT EXISTS idx_prixhist_produit
   ON prix_historique(produit_id, recorded_at DESC);
-
--- --- Utilisateurs (multi-user futur) --------------------------
-CREATE TABLE IF NOT EXISTS users (
-  id            SERIAL PRIMARY KEY,
-  email         VARCHAR(255) UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  display_name  VARCHAR(200),
-  role          VARCHAR(20) DEFAULT 'user',   -- user | admin
-  created_at    TIMESTAMPTZ DEFAULT NOW()
-);

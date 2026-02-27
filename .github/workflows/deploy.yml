@@ -1,0 +1,71 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Render
+        if: secrets.DEPLOY_PROVIDER == 'render'
+        run: |
+          curl -s -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}" \
+            -o /dev/null -w "%{http_code}"
+
+      - name: Deploy to Railway
+        if: secrets.DEPLOY_PROVIDER == 'railway'
+        run: |
+          npm install -g @railway/cli
+          railway up -y
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  deploy-frontend:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docling-pwa
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: docling-pwa/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Vérifier le build
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://api.example.com' }}
+          VITE_AUTH_REQUIRED: ${{ secrets.VITE_AUTH_REQUIRED || 'true' }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+
+      - name: Deploy to Vercel
+        if: secrets.FRONTEND_PROVIDER == 'vercel'
+        run: npx vercel deploy --prod --token ${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Netlify
+        if: secrets.FRONTEND_PROVIDER == 'netlify'
+        run: npx netlify-cli deploy --prod --dir=dist
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}

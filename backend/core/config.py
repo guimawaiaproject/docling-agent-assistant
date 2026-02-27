@@ -76,6 +76,13 @@ class _Settings(BaseSettings):
             errors.append("DATABASE_URL manquante dans .env")
         elif not self.DATABASE_URL.startswith("postgresql"):
             errors.append("DATABASE_URL doit commencer par postgresql://")
+        if not self.JWT_SECRET:
+            errors.append("JWT_SECRET manquant dans .env")
+        if self.DEFAULT_AI_MODEL not in self.MODELS_DISPONIBLES:
+            errors.append(
+                f"DEFAULT_AI_MODEL='{self.DEFAULT_AI_MODEL}' invalide. "
+                f"Valeurs acceptées : {', '.join(self.MODELS_DISPONIBLES)}"
+            )
 
         Path(self.WATCHDOG_FOLDER).mkdir(parents=True, exist_ok=True)
         Path(self.WATCHDOG_FOLDER + "/Traitees").mkdir(parents=True, exist_ok=True)

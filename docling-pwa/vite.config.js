@@ -37,4 +37,19 @@ export default defineConfig({
     host: true,
     https: true
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-core': ['react', 'react-dom'],
+          'router': ['react-router-dom'],
+          'ui-motion': ['framer-motion', 'lucide-react'],
+          'charts': ['recharts'],
+          'pdf-gen': ['jspdf', 'jspdf-autotable'],
+          'excel-gen': ['exceljs'],
+          'dropzone': ['react-dropzone']
+        }
+      }
+    }
+  }
 })

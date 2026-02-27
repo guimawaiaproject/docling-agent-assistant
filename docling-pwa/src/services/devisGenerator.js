@@ -35,12 +35,20 @@ export function getPreviewDevisNum() {
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 
+function getSettings() {
+  try {
+    return JSON.parse(localStorage.getItem('docling_settings') || '{}')
+  } catch {
+    return {}
+  }
+}
+
 export function generateDevisPDF(products, options = {}) {
+  const settings = getSettings()
   const {
-    entreprise = 'Mon Entreprise BTP',
+    entreprise = settings.nom ?? 'Mon Entreprise BTP',
     client = 'Client',
     devisNum = `DEV-${new Date().getFullYear()}-001`,
-    tvaRate = 21,
     remiseGlobale = 0,
     remiseType = 'percent',
   } = options
@@ -49,10 +57,17 @@ export function generateDevisPDF(products, options = {}) {
   const pageW = doc.internal.pageSize.getWidth()
   let y = 15
 
-  // Header
+  // Header: logo (left) + company name (right)
+  if (settings.logo && typeof settings.logo === 'string') {
+    try {
+      doc.addImage(settings.logo, 'PNG', 14, 10, 30, 15)
+    } catch {
+      // fallback if image fails
+    }
+  }
   doc.setFontSize(20)
   doc.setFont('helvetica', 'bold')
-  doc.text(entreprise, 14, y)
+  doc.text(entreprise, pageW - 14, y, { align: 'right' })
   y += 8
 
   doc.setFontSize(10)
@@ -103,16 +118,19 @@ export function generateDevisPDF(products, options = {}) {
 
   y = doc.lastAutoTable.finalY + 10
 
-  // Totals
-  let totalHT = products.reduce((acc, p) =>
+  // Totals (per-line TVA)
+  const totalHT = products.reduce((acc, p) =>
     acc + (parseFloat(p.prix_remise_ht) || 0) * (p.quantite || 1), 0
+  )
+  const totalTVA = products.reduce((acc, p) =>
+    acc + (parseFloat(p.prix_remise_ht) || 0) * (p.quantite || 1) * ((p.tvaRate ?? 20) / 100), 0
   )
   const remiseAmount = remiseType === 'percent'
     ? totalHT * (remiseGlobale / 100)
     : Math.min(remiseGlobale, totalHT)
   const totalHTAfterRemise = totalHT - remiseAmount
-  const tva = totalHTAfterRemise * (tvaRate / 100)
-  const totalTTC = totalHTAfterRemise + tva
+  const tvaScaled = totalHT > 0 ? totalTVA * (totalHTAfterRemise / totalHT) : 0
+  const totalTTC = totalHTAfterRemise + tvaScaled
 
   const rightX = pageW - 14
   doc.setFontSize(10)
@@ -128,8 +146,8 @@ export function generateDevisPDF(products, options = {}) {
     doc.text(`${totalHTAfterRemise.toFixed(2)} EUR`, rightX, y, { align: 'right' })
     y += 6
   }
-  doc.text(`TVA ${tvaRate}%:`, rightX - 45, y)
-  doc.text(`${tva.toFixed(2)} EUR`, rightX, y, { align: 'right' })
+  doc.text(`TVA:`, rightX - 45, y)
+  doc.text(`${tvaScaled.toFixed(2)} EUR`, rightX, y, { align: 'right' })
   y += 6
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
@@ -138,10 +156,14 @@ export function generateDevisPDF(products, options = {}) {
 
   // Footer
   y += 15
-  doc.setFontSize(8)
+  doc.setFontSize(7)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(150)
-  doc.text('Devis genere par Docling Agent BTP', 14, y)
+  doc.setTextColor(128)
+  if (settings.mentionsLegales && typeof settings.mentionsLegales === 'string') {
+    doc.text(settings.mentionsLegales, 14, y, { maxWidth: pageW - 28 })
+  } else {
+    doc.text('Devis genere par Docling Agent BTP', 14, y)
+  }
 
   doc.save(`${devisNum}.pdf`)
   return devisNum

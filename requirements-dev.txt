@@ -5,3 +5,6 @@
 pytest==8.4.1
 pytest-asyncio==1.2.0
 requests==2.32.3
+
+# --- Pre-commit ---
+pre-commit>=4.0.0

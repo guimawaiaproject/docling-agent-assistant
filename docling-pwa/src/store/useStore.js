@@ -28,12 +28,13 @@ export const useDoclingStore = create(
           extractedProducts: []
         }),
 
-        setJobComplete: (products) => set({
+        setJobComplete: (products, source = 'pc') => set({
           extractedProducts: (products || []).map((p, i) => ({
             ...p,
             _key: p.id ?? p._key ?? `val-${(p.designation_raw || p.designation_fr || '').slice(0, 30)}-${(p.fournisseur || '').slice(0, 20)}-${i}-${Date.now()}`
           })),
-          currentJob: null
+          currentJob: null,
+          pendingSource: source
         }),
 
         updateProduct: (index, field, value) => set((state) => ({
@@ -45,7 +46,8 @@ export const useDoclingStore = create(
         clearJob: () => set({
           currentJob: null,
           extractedProducts: [],
-          currentInvoice: null
+          currentInvoice: null,
+          pendingSource: 'pc'
         }),
 
         removeProduct: (index) => set((state) => ({

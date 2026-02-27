@@ -12,6 +12,7 @@ pour PgBouncer → jusqu'à 10k connexions, meilleure résilience.
 
 import json
 import logging
+import re
 from datetime import date, datetime
 from typing import Any, Optional
 
@@ -23,12 +24,12 @@ logger = logging.getLogger(__name__)
 
 _UPSERT_SQL = """
     INSERT INTO produits (
-        fournisseur, designation_raw, designation_fr,
+        user_id, fournisseur, designation_raw, designation_fr,
         famille, unite,
         prix_brut_ht, remise_pct, prix_remise_ht, prix_ttc_iva21,
         numero_facture, date_facture, confidence, source
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-    ON CONFLICT (designation_raw, fournisseur)
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+    ON CONFLICT (designation_raw, fournisseur, user_id)
     DO UPDATE SET
         designation_fr = EXCLUDED.designation_fr,
         famille        = EXCLUDED.famille,
@@ -45,19 +46,45 @@ _UPSERT_SQL = """
 
 
 def _escape_like(term: str) -> str:
-    """Échappe % et _ pour usage dans ILIKE (PostgreSQL)."""
+    """Échappe % et _ pour usage dans ILIKE (PostgreSQL). Utiliser avec ESCAPE '\\'."""
     if not term:
         return term
     return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def _safe_float(val: Any, default: float = 0.0) -> float:
-    """Convertit en float sans lever d'exception. Gère None, chaînes invalides."""
+    """Convertit en float sans lever d'exception. Gère "12,50", "€45", "N/A", etc."""
     if val is None:
         return default
-    try:
+    if isinstance(val, (int, float)):
         return float(val)
-    except (TypeError, ValueError):
+    s = str(val).strip()
+    if not s or s.upper() in ("N/A", "NA", "-", ""):
+        return default
+    s = re.sub(r"[€$£\s]", "", s)
+    s = s.replace(",", ".")
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_int(val: Any, default: int = 0) -> int:
+    """Convertit en int sans lever d'exception. Gère "12", "N/A", "€45", etc."""
+    if val is None:
+        return default
+    if isinstance(val, int):
+        return val
+    if isinstance(val, float):
+        return int(val) if val == val else default  # NaN check
+    s = str(val).strip()
+    if not s or s.upper() in ("N/A", "NA", "-", ""):
+        return default
+    s = re.sub(r"[€$£\s]", "", s)
+    s = s.replace(",", ".")
+    try:
+        return int(float(s))
+    except (ValueError, TypeError):
         return default
 
 
@@ -79,8 +106,9 @@ def _parse_date(val) -> date | None:
     return None
 
 
-def _upsert_params(product: dict, source: str) -> tuple:
+def _upsert_params(product: dict, source: str, user_id: int | None) -> tuple:
     return (
+        user_id,
         product.get("fournisseur", ""),
         product.get("designation_raw", ""),
         product.get("designation_fr", ""),
@@ -138,14 +166,16 @@ class DBManager:
         logger.info("Migrations Alembic OK")
 
     @classmethod
-    async def upsert_product(cls, product: dict, source: str = "pc") -> bool:
+    async def upsert_product(
+        cls, product: dict, source: str = "pc", user_id: int | None = None
+    ) -> bool:
         """Upsert un seul produit. Délègue au batch."""
-        count, _ = await cls.upsert_products_batch([product], source=source)
+        count, _ = await cls.upsert_products_batch([product], source=source, user_id=user_id)
         return count > 0
 
     @classmethod
     async def upsert_products_batch(
-        cls, products: list[dict], source: str = "pc"
+        cls, products: list[dict], source: str = "pc", user_id: int | None = None
     ) -> tuple[int, int]:
         """Insère/met à jour une liste de produits. Retourne (count, historique_failures)."""
         pool = await cls.get_pool()
@@ -157,7 +187,7 @@ class DBManager:
                     try:
                         result = await conn.fetchrow(
                             _UPSERT_SQL + " RETURNING id",
-                            *_upsert_params(product, source)
+                            *_upsert_params(product, source, user_id)
                         )
                         count += 1
                         if result and _safe_float(product.get("prix_remise_ht")) > 0:
@@ -195,6 +225,7 @@ class DBManager:
         search:      Optional[str] = None,
         limit:       int = 50,
         cursor:      Optional[str] = None,
+        user_id:     int | None = None,
     ) -> dict[str, Any]:
         pool = await cls.get_pool()
         async with pool.acquire() as conn:
@@ -202,6 +233,11 @@ class DBManager:
             conditions = []
             params: list[Any] = []
             idx = 1
+
+            if user_id is not None:
+                conditions.append(f"user_id = ${idx}")
+                params.append(user_id)
+                idx += 1
 
             if cursor:
                 conditions.append(f"updated_at < ${idx}::timestamptz")
@@ -214,20 +250,21 @@ class DBManager:
                 idx += 1
 
             if fournisseur:
-                conditions.append(f"fournisseur ILIKE ${idx}")
-                params.append(f"%{fournisseur}%")
+                conditions.append(f"fournisseur ILIKE ${idx} ESCAPE E'\\\\'")
+                params.append(f"%{_escape_like(fournisseur)}%")
                 idx += 1
 
             if search and search.strip():
                 s = search.strip()
+                s_escaped = _escape_like(s)
                 conditions.append(f"""(
-                    designation_raw ILIKE ${idx}
-                    OR designation_fr   ILIKE ${idx}
-                    OR fournisseur      ILIKE ${idx}
+                    designation_raw ILIKE ${idx} ESCAPE E'\\\\'
+                    OR designation_fr   ILIKE ${idx} ESCAPE E'\\\\'
+                    OR fournisseur      ILIKE ${idx} ESCAPE E'\\\\'
                     OR similarity(designation_raw, ${idx+1}) > 0.2
                     OR similarity(designation_fr,  ${idx+1}) > 0.2
                 )""")
-                params.append(f"%{s}%")
+                params.append(f"%{s_escaped}%")
                 params.append(s)
                 idx += 2
 
@@ -272,19 +309,23 @@ class DBManager:
             count_where_conditions = []
             count_params_clean: list[Any] = []
             cidx = 1
+            if user_id is not None:
+                count_where_conditions.append(f"user_id = ${cidx}")
+                count_params_clean.append(user_id)
+                cidx += 1
             if famille and famille != "Toutes":
                 count_where_conditions.append(f"famille = ${cidx}")
                 count_params_clean.append(famille)
                 cidx += 1
             if fournisseur:
-                count_where_conditions.append(f"fournisseur ILIKE ${cidx}")
-                count_params_clean.append(f"%{fournisseur}%")
+                count_where_conditions.append(f"fournisseur ILIKE ${cidx} ESCAPE E'\\\\'")
+                count_params_clean.append(f"%{_escape_like(fournisseur)}%")
                 cidx += 1
             if search and search.strip():
                 count_where_conditions.append(
-                    f"(designation_raw ILIKE ${cidx} OR designation_fr ILIKE ${cidx})"
+                    f"(designation_raw ILIKE ${cidx} ESCAPE E'\\\\' OR designation_fr ILIKE ${cidx} ESCAPE E'\\\\')"
                 )
-                count_params_clean.append(f"%{search.strip()}%")
+                count_params_clean.append(f"%{_escape_like(search.strip())}%")
                 cidx += 1
 
             count_where = ("WHERE " + " AND ".join(count_where_conditions)) if count_where_conditions else ""
@@ -298,10 +339,12 @@ class DBManager:
             }
 
     @classmethod
-    async def get_stats(cls) -> dict:
+    async def get_stats(cls, user_id: int | None = None) -> dict:
         pool = await cls.get_pool()
         async with pool.acquire() as conn:
-            stats = await conn.fetchrow("""
+            where = "WHERE user_id = $1" if user_id is not None else ""
+            params = (user_id,) if user_id is not None else ()
+            stats = await conn.fetchrow(f"""
                 SELECT
                     COUNT(*)                                    AS total_produits,
                     COUNT(DISTINCT fournisseur)                 AS total_fournisseurs,
@@ -310,15 +353,18 @@ class DBManager:
                     COUNT(*) FILTER (WHERE source = 'mobile')   AS depuis_mobile,
                     COUNT(*) FILTER (WHERE updated_at > NOW() - INTERVAL '7 days') AS cette_semaine
                 FROM produits
-            """)
+                {where}
+            """, *params)
 
-            familles = await conn.fetch("""
+            fam_where = "AND user_id = $1" if user_id is not None else ""
+            fam_params = (user_id,) if user_id is not None else ()
+            familles = await conn.fetch(f"""
                 SELECT famille, COUNT(*) AS nb
                 FROM produits
-                WHERE famille IS NOT NULL
+                WHERE famille IS NOT NULL {fam_where}
                 GROUP BY famille
                 ORDER BY nb DESC
-            """)
+            """, *fam_params)
 
             return {
                 **dict(stats),
@@ -326,16 +372,28 @@ class DBManager:
             }
 
     @classmethod
-    async def get_factures_history(cls, limit: int = 50) -> list[dict]:
+    async def get_factures_history(
+        cls, limit: int = 50, user_id: int | None = None
+    ) -> list[dict]:
         pool = await cls.get_pool()
         async with pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT id, filename, statut, nb_produits_extraits,
-                       cout_api_usd, modele_ia, source, pdf_url, created_at
-                FROM factures
-                ORDER BY created_at DESC
-                LIMIT $1
-            """, limit)
+            if user_id is not None:
+                rows = await conn.fetch("""
+                    SELECT id, filename, statut, nb_produits_extraits,
+                           cout_api_usd, modele_ia, source, pdf_url, created_at
+                    FROM factures
+                    WHERE user_id = $1
+                    ORDER BY created_at DESC
+                    LIMIT $2
+                """, user_id, limit)
+            else:
+                rows = await conn.fetch("""
+                    SELECT id, filename, statut, nb_produits_extraits,
+                           cout_api_usd, modele_ia, source, pdf_url, created_at
+                    FROM factures
+                    ORDER BY created_at DESC
+                    LIMIT $1
+                """, limit)
             return [dict(r) for r in rows]
 
     @classmethod
@@ -348,15 +406,16 @@ class DBManager:
         modele_ia:   str,
         source:      str = "pc",
         pdf_url:     str = None,
+        user_id:     int | None = None,
     ) -> int:
         pool = await cls.get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow("""
                 INSERT INTO factures
-                    (filename, statut, nb_produits_extraits, cout_api_usd, modele_ia, source, pdf_url)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    (filename, statut, nb_produits_extraits, cout_api_usd, modele_ia, source, pdf_url, user_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING id
-            """, filename, statut, nb_produits, cout_usd, modele_ia, source, pdf_url)
+            """, filename, statut, nb_produits, cout_usd, modele_ia, source, pdf_url, user_id)
             return row["id"]
 
     @classmethod
@@ -411,26 +470,61 @@ class DBManager:
             }
 
     @classmethod
-    async def truncate_products(cls) -> int:
+    async def truncate_products(cls, user_id: int | None = None) -> int:
         pool = await cls.get_pool()
         async with pool.acquire() as conn:
+            if user_id is not None:
+                result = await conn.execute(
+                    "DELETE FROM produits WHERE user_id = $1", user_id
+                )
+                return int(result.split()[-1]) if result else 0
             await conn.execute("TRUNCATE TABLE produits RESTART IDENTITY")
             return 0
 
     @classmethod
-    async def get_fournisseurs(cls) -> list[str]:
+    async def get_facture_pdf_url(
+        cls, facture_id: int, user_id: int | None = None
+    ) -> str | None:
+        """Retourne pdf_url si la facture existe et appartient à l'utilisateur."""
         pool = await cls.get_pool()
         async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT DISTINCT fournisseur FROM produits ORDER BY fournisseur"
-            )
+            if user_id is not None:
+                row = await conn.fetchrow(
+                    "SELECT pdf_url FROM factures WHERE id = $1 AND user_id = $2",
+                    facture_id,
+                    user_id,
+                )
+            else:
+                row = await conn.fetchrow(
+                    "SELECT pdf_url FROM factures WHERE id = $1", facture_id
+                )
+            return row["pdf_url"] if row and row["pdf_url"] else None
+
+    @classmethod
+    async def get_fournisseurs(cls, user_id: int | None = None) -> list[str]:
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            if user_id is not None:
+                rows = await conn.fetch(
+                    "SELECT DISTINCT fournisseur FROM produits WHERE user_id = $1 ORDER BY fournisseur",
+                    user_id,
+                )
+            else:
+                rows = await conn.fetch(
+                    "SELECT DISTINCT fournisseur FROM produits ORDER BY fournisseur"
+                )
             return [r["fournisseur"] for r in rows]
     @classmethod
-    async def compare_prices(cls, search: str) -> list[dict]:
+    async def compare_prices(
+        cls, search: str, user_id: int | None = None
+    ) -> list[dict]:
         """Compare les prix d'un produit entre fournisseurs."""
         pool = await cls.get_pool()
+        search_escaped = f"%{_escape_like(search)}%"
         async with pool.acquire() as conn:
-            rows = await conn.fetch("""
+            user_clause = "AND user_id = $3" if user_id is not None else ""
+            params: tuple = (search_escaped, search, user_id) if user_id is not None else (search_escaped, search)
+            rows = await conn.fetch(f"""
                 SELECT
                     id,
                     fournisseur,
@@ -443,48 +537,65 @@ class DBManager:
                     date_facture,
                     updated_at
                 FROM produits
-                WHERE designation_fr ILIKE $1
-                   OR designation_raw ILIKE $1
-                   OR similarity(designation_fr, $2) > 0.3
+                WHERE (designation_fr ILIKE $1 ESCAPE E'\\\\'
+                   OR designation_raw ILIKE $1 ESCAPE E'\\\\'
+                   OR similarity(designation_fr, $2) > 0.3) {user_clause}
                 ORDER BY prix_remise_ht ASC
                 LIMIT 20
-            """, f"%{search}%", search)
+            """, *params)
             return [dict(r) for r in rows]
 
     @classmethod
-    async def get_price_history_by_product_id(cls, product_id: int) -> list[dict]:
+    async def get_price_history_by_product_id(
+        cls, product_id: int, user_id: int | None = None
+    ) -> list[dict]:
         """Historique de prix depuis prix_historique pour un produit."""
         pool = await cls.get_pool()
         async with pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT prix_ht, prix_brut, remise_pct, recorded_at
-                FROM prix_historique
-                WHERE produit_id = $1
-                ORDER BY recorded_at ASC
-                LIMIT 20
-            """, product_id)
+            if user_id is not None:
+                rows = await conn.fetch("""
+                    SELECT ph.prix_ht, ph.prix_brut, ph.remise_pct, ph.recorded_at
+                    FROM prix_historique ph
+                    JOIN produits p ON p.id = ph.produit_id AND p.user_id = $2
+                    WHERE ph.produit_id = $1
+                    ORDER BY ph.recorded_at ASC
+                    LIMIT 20
+                """, product_id, user_id)
+            else:
+                rows = await conn.fetch("""
+                    SELECT prix_ht, prix_brut, remise_pct, recorded_at
+                    FROM prix_historique
+                    WHERE produit_id = $1
+                    ORDER BY recorded_at ASC
+                    LIMIT 20
+                """, product_id)
             return [dict(r) for r in rows]
 
     @classmethod
-    async def compare_prices_with_history(cls, search: str) -> list[dict]:
+    async def compare_prices_with_history(
+        cls, search: str, user_id: int | None = None
+    ) -> list[dict]:
         """
         Compare prices + batch-load history in 2 queries (fixes N+1).
         Returns products with an embedded 'price_history' list.
         """
         pool = await cls.get_pool()
+        search_escaped = f"%{_escape_like(search)}%"
         async with pool.acquire() as conn:
-            products = await conn.fetch("""
+            user_clause = "AND user_id = $3" if user_id is not None else ""
+            params: tuple = (search_escaped, search, user_id) if user_id is not None else (search_escaped, search)
+            products = await conn.fetch(f"""
                 SELECT
                     id, fournisseur, designation_fr,
                     prix_remise_ht, prix_brut_ht, remise_pct,
                     unite, numero_facture, date_facture, updated_at
                 FROM produits
-                WHERE designation_fr ILIKE $1
-                   OR designation_raw ILIKE $1
-                   OR similarity(designation_fr, $2) > 0.3
+                WHERE (designation_fr ILIKE $1 ESCAPE E'\\\\'
+                   OR designation_raw ILIKE $1 ESCAPE E'\\\\'
+                   OR similarity(designation_fr, $2) > 0.3) {user_clause}
                 ORDER BY prix_remise_ht ASC
                 LIMIT 20
-            """, f"%{search}%", search)
+            """, *params)
 
             if not products:
                 return []

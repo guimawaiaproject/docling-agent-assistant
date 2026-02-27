@@ -4,8 +4,6 @@ import { toast } from 'sonner'
 import apiClient from '../services/apiClient'
 import { ENDPOINTS } from '../config/api'
 
-const TOKEN_KEY = 'docling-token'
-
 function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || '')
 }
@@ -27,7 +25,7 @@ export default function LoginPage() {
       return
     }
     if (!validatePassword(password)) {
-      toast.error('Mot de passe : minimum 8 caractères')
+      toast.error('Mot de passe : 8 car. min, 1 majuscule, 1 chiffre')
       return
     }
     setLoading(true)
@@ -37,9 +35,9 @@ export default function LoginPage() {
       formData.append('password', password)
       const { data } = await apiClient.post(ENDPOINTS.login, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        withCredentials: true,
       })
-      if (data?.token) {
-        localStorage.setItem(TOKEN_KEY, data.token)
+      if (data?.user_id) {
         toast.success('Connexion réussie')
         navigate('/scan', { replace: true })
       } else {

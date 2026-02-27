@@ -1,10 +1,25 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { FileText, Loader2, Minus, Plus, Search, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import apiClient from '../services/apiClient'
 import { ENDPOINTS } from '../config/api'
 import { generateDevisPDF, getNextDevisNum, getPreviewDevisNum } from '../services/devisGenerator'
+
+const DRAFT_KEY = 'docling_devis_draft'
+const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
+
+const TVA_OPTIONS = [5.5, 10, 20]
+
+function getDefaultTvaRate() {
+  try {
+    const s = JSON.parse(localStorage.getItem('docling_settings') || '{}')
+    const r = typeof s.tvaRate === 'number' ? s.tvaRate : 20
+    return TVA_OPTIONS.includes(r) ? r : 20
+  } catch {
+    return 20
+  }
+}
 
 export default function DevisPage() {
   const [allProducts, setAllProducts] = useState([])
@@ -13,10 +28,56 @@ export default function DevisPage() {
   const [selected, setSelected] = useState([])
   const [entreprise, setEntreprise] = useState('Mon Entreprise BTP')
   const [client, setClient] = useState('')
-  const [tvaRate, setTvaRate] = useState(21)
   const [remiseGlobale, setRemiseGlobale] = useState(0)
   const [remiseType, setRemiseType] = useState('percent')
   const [devisNum, setDevisNum] = useState(() => getPreviewDevisNum())
+  const saveDraftTimerRef = useRef(null)
+
+  // Restore draft on mount if < 24h old
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY)
+      if (!raw) return
+      const { data, savedAt } = JSON.parse(raw)
+      if (Date.now() - savedAt > DRAFT_MAX_AGE_MS) {
+        localStorage.removeItem(DRAFT_KEY)
+        return
+      }
+      if (data.entreprise != null) setEntreprise(data.entreprise)
+      if (data.client != null) setClient(data.client)
+      if (data.remiseGlobale != null) setRemiseGlobale(data.remiseGlobale)
+      if (data.remiseType != null) setRemiseType(data.remiseType)
+      if (data.devisNum != null) setDevisNum(data.devisNum)
+      if (Array.isArray(data.selected) && data.selected.length > 0) {
+        setSelected(data.selected.map(p => ({
+          ...p,
+          tvaRate: p.tvaRate ?? getDefaultTvaRate(),
+        })))
+        toast.success('Brouillon restauré')
+      }
+    } catch {
+      localStorage.removeItem(DRAFT_KEY)
+    }
+  }, [])
+
+  // Debounced save draft
+  useEffect(() => {
+    saveDraftTimerRef.current = setTimeout(() => {
+      const draft = {
+        entreprise,
+        client,
+        selected,
+        remiseGlobale,
+        remiseType,
+        devisNum,
+      }
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        data: draft,
+        savedAt: Date.now(),
+      }))
+    }, 1500)
+    return () => clearTimeout(saveDraftTimerRef.current)
+  }, [entreprise, client, selected, remiseGlobale, remiseType, devisNum])
 
   const fetchProducts = useCallback(async () => {
     setLoading(true)
@@ -42,13 +103,14 @@ export default function DevisPage() {
   }, [allProducts, search])
 
   const addProduct = (product) => {
+    const defaultTva = getDefaultTvaRate()
     const exists = selected.find(s => s.id === product.id)
     if (exists) {
       setSelected(selected.map(s =>
         s.id === product.id ? { ...s, quantite: s.quantite + 1 } : s
       ))
     } else {
-      setSelected([...selected, { ...product, quantite: 1 }])
+      setSelected([...selected, { ...product, quantite: 1, tvaRate: product.tvaRate ?? defaultTva }])
     }
   }
 
@@ -64,8 +126,17 @@ export default function DevisPage() {
     setSelected(selected.filter(s => s.id !== id))
   }
 
+  const updateTvaRate = (id, rate) => {
+    setSelected(selected.map(s =>
+      s.id === id ? { ...s, tvaRate: parseFloat(rate) } : s
+    ))
+  }
+
   const totalHT = selected.reduce((acc, s) =>
     acc + (parseFloat(s.prix_remise_ht) || 0) * s.quantite, 0
+  )
+  const totalTVA = selected.reduce((acc, p) =>
+    acc + (parseFloat(p.prix_remise_ht) || 0) * p.quantite * ((p.tvaRate ?? getDefaultTvaRate()) / 100), 0
   )
 
   const handleGenerate = () => {
@@ -78,10 +149,10 @@ export default function DevisPage() {
         entreprise,
         client,
         devisNum,
-        tvaRate,
         remiseGlobale: parseFloat(remiseGlobale) || 0,
         remiseType,
       })
+      localStorage.removeItem(DRAFT_KEY)
       setDevisNum(getNextDevisNum())
       toast.success(`Devis ${num} généré !`)
     } catch (err) {
@@ -133,19 +204,6 @@ export default function DevisPage() {
               focus:outline-none focus:border-emerald-500/60 transition-all"
           />
         </div>
-        <div className="flex justify-between items-center px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl">
-          <label htmlFor="devis-tva" className="text-xs text-slate-400">TVA %</label>
-          <input
-            id="devis-tva"
-            type="number"
-            min="0"
-            max="100"
-            step="0.1"
-            value={tvaRate}
-            onChange={e => setTvaRate(parseFloat(e.target.value) || 0)}
-            className="w-16 bg-transparent text-right text-sm font-bold text-slate-200 focus:outline-none"
-          />
-        </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="devis-remise" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Remise globale</label>
           <div className="flex gap-2">
@@ -194,6 +252,16 @@ export default function DevisPage() {
                     <p className="text-xs font-semibold text-slate-200 truncate">{s.designation_fr}</p>
                     <p className="text-[10px] text-slate-500">{(parseFloat(s.prix_remise_ht)||0).toFixed(2)} EUR/{s.unite}</p>
                   </div>
+                  <select
+                    value={[5.5, 10, 20].includes(Number(s.tvaRate)) ? s.tvaRate : 20}
+                    onChange={e => updateTvaRate(s.id, e.target.value)}
+                    aria-label={`TVA pour ${s.designation_fr}`}
+                    className="w-14 bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-[10px] text-slate-200"
+                  >
+                    <option value="5.5">5.5%</option>
+                    <option value="10">10%</option>
+                    <option value="20">20%</option>
+                  </select>
                   <div className="flex items-center gap-1">
                     <button onClick={() => updateQty(s.id, -1)}
                       aria-label="Diminuer la quantité"
@@ -220,9 +288,28 @@ export default function DevisPage() {
             </AnimatePresence>
           </div>
 
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-700">
-            <span className="text-xs font-bold text-slate-400 uppercase">Total HT</span>
-            <span className="text-lg font-black text-emerald-400">{totalHT.toFixed(2)} EUR</span>
+          <div className="space-y-1.5 mt-3 pt-3 border-t border-slate-700">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-400 uppercase">Total HT</span>
+              <span className="text-sm font-bold text-slate-200">{totalHT.toFixed(2)} EUR</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-400 uppercase">TVA</span>
+              <span className="text-sm font-bold text-slate-200">{totalTVA.toFixed(2)} EUR</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-slate-400 uppercase">Total TTC</span>
+              <span className="text-lg font-black text-emerald-400">
+                {(() => {
+                  const remiseAmount = remiseType === 'percent'
+                    ? totalHT * (parseFloat(remiseGlobale) || 0) / 100
+                    : Math.min(parseFloat(remiseGlobale) || 0, totalHT)
+                  const totalHTAfterRemise = totalHT - remiseAmount
+                  const tvaScaled = totalHT > 0 ? totalTVA * (totalHTAfterRemise / totalHT) : 0
+                  return (totalHTAfterRemise + tvaScaled).toFixed(2)
+                })()} EUR
+              </span>
+            </div>
           </div>
 
           <button

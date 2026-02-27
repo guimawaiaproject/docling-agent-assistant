@@ -4,6 +4,7 @@ import {
     Folder, Loader2, Monitor, Package, RefreshCw, RotateCcw, Smartphone
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import apiClient from '../services/apiClient'
 import { ENDPOINTS } from '../config/api'
@@ -24,6 +25,7 @@ function formatDate(iso) {
 }
 
 export default function HistoryPage() {
+  const navigate = useNavigate()
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [stats,   setStats]   = useState(null)
@@ -157,9 +159,22 @@ export default function HistoryPage() {
           <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
         </div>
       ) : history.length === 0 ? (
-        <div className="flex flex-col items-center pt-12 text-slate-600 gap-3">
-          <Clock size={48} className="opacity-20" />
-          <p className="text-sm">Aucune facture traitée pour l'instant</p>
+        <div className="flex flex-col items-center pt-12 text-slate-500 gap-5 px-6">
+          <Clock size={64} className="text-slate-600 opacity-40" />
+          <div className="text-center space-y-2">
+            <h2 className="text-lg font-bold text-slate-400">Aucune facture traitée</h2>
+            <p className="text-sm text-slate-600 max-w-xs">
+              Scannez une facture pour commencer à alimenter votre historique.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/scan')}
+            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500
+              text-white rounded-xl text-sm font-bold transition-colors"
+          >
+            <Package size={16} />
+            Scanner une facture
+          </button>
         </div>
       ) : (
         <AnimatePresence>

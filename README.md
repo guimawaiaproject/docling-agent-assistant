@@ -188,9 +188,15 @@ pytest tests/04_e2e -v -m e2e
 pytest tests/ -v -m "not slow and not external"
 ```
 
+## Agent Skills (IA)
+
+Le projet utilise [Agent Skills](https://agentskills.io) pour guider Cursor et autres agents IA. Voir [AGENTS.md](AGENTS.md). Validation : `make validate-skills`.
+
 ## Documentation
 
-Voir [docs/README.md](docs/README.md) pour la documentation complète (architecture, API, services, audits).
+- **[docs/README.md](docs/README.md)** — Index complet
+- **[docs/DEVELOPER-ONBOARDING.md](docs/DEVELOPER-ONBOARDING.md)** — Onboarding (30 min)
+- **[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)** — Workflow contribution
 
 ## Licence
 

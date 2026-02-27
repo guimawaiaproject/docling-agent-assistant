@@ -13,6 +13,7 @@ Endpoints :
 """
 
 import asyncio
+import json
 import logging
 import mimetypes
 import os
@@ -23,7 +24,7 @@ from typing import Optional
 import sentry_sdk
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -31,7 +32,14 @@ from slowapi.util import get_remote_address
 from backend.core.config import Config
 from backend.core.db_manager import DBManager
 from backend.utils.serializers import serialize_row
-from backend.services.auth_service import create_token, verify_token, hash_password, verify_password, needs_rehash
+from backend.services.auth_service import (
+    create_token,
+    verify_token,
+    hash_password,
+    verify_password,
+    needs_rehash,
+    validate_password,
+)
 from backend.services.storage_service import StorageService
 from backend.core.orchestrator import Orchestrator
 from backend.schemas.invoice import BatchSaveRequest
@@ -42,13 +50,18 @@ from backend.services.watchdog_service import (
 )
 
 # ─── Sentry — error monitoring ────────────────────────────────────────────────
+_ENV = os.getenv("ENVIRONMENT", "production")
 _SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 if _SENTRY_DSN:
     sentry_sdk.init(
         dsn=_SENTRY_DSN,
         traces_sample_rate=0.1,
-        environment=os.getenv("ENVIRONMENT", "production"),
-        release=f"docling-agent@3.0.0",
+        environment=_ENV,
+        release="docling-agent@3.0.0",
+    )
+elif _ENV == "production":
+    logging.getLogger(__name__).warning(
+        "SENTRY_DSN non configuré en production — monitoring des erreurs désactivé"
     )
 
 
@@ -57,11 +70,19 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 # ─── Auth dependencies ────────────────────────────────────────────────────────
-async def get_current_user(authorization: str = Header(default="", alias="Authorization")) -> dict:
-    """Extract and validate Bearer token from Authorization header."""
-    if not authorization.startswith("Bearer "):
+async def get_current_user(
+    request: Request,
+    authorization: str = Header(default="", alias="Authorization"),
+) -> dict:
+    """Extract and validate token from Cookie (httpOnly) or Authorization header."""
+    token = None
+    if authorization.startswith("Bearer "):
+        token = authorization[7:]
+    if not token:
+        token = request.cookies.get("docling-token")
+    if not token:
         raise HTTPException(status_code=401, detail="Token manquant")
-    payload = verify_token(authorization[7:])
+    payload = verify_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="Token invalide ou expiré")
     return payload
@@ -172,6 +193,37 @@ app.add_middleware(
 )
 
 
+async def _security_headers(request: Request, call_next):
+    """Add security headers to all responses."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    return response
+
+
+app.middleware("http")(_security_headers)
+
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    """Inject request_id (uuid[:8]), log request/response, add X-Request-ID header."""
+    request_id = str(uuid.uuid4())[:8]
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    logger.info(
+        "request_id=%s method=%s path=%s status_code=%s",
+        request_id,
+        request.method,
+        request.url.path,
+        response.status_code,
+    )
+    return response
+
+
 # ─── Upload constants ─────────────────────────────────────────────────────────
 _MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 Mo
 _ALLOWED_MIMES = {"application/pdf", "image/jpeg", "image/png", "image/webp"}
@@ -240,7 +292,7 @@ async def process_invoice(
     await DBManager.create_job(job_id, "processing", user_id=user_id)
 
     background_tasks.add_task(
-        _run_extraction, job_id, file_bytes, filename, model, source
+        _run_extraction, job_id, file_bytes, filename, model, source, user_id
     )
 
     return JSONResponse(
@@ -250,7 +302,12 @@ async def process_invoice(
 
 
 async def _run_extraction(
-    job_id: str, file_bytes: bytes, filename: str, model: str, source: str
+    job_id: str,
+    file_bytes: bytes,
+    filename: str,
+    model: str,
+    source: str,
+    user_id: int | None = None,
 ):
     async with _extraction_semaphore:
         try:
@@ -259,6 +316,7 @@ async def _run_extraction(
                 filename=filename,
                 model_id=model,
                 source=source,
+                user_id=user_id,
             )
             await _gemini_cb.record_success()
             await DBManager.update_job(
@@ -311,17 +369,17 @@ async def get_catalogue(
     Recherche floue sur designation_raw (CA/ES) + designation_fr (FR) via pg_trgm.
     """
     try:
+        user_id = int(_user["sub"]) if _user.get("sub") else None
         result = await DBManager.get_catalogue(
             famille=famille,
             fournisseur=fournisseur,
             search=search,
             limit=min(limit, 200),
             cursor=cursor,
+            user_id=user_id,
         )
 
-        for p in result["products"]:
-            serialize_row(p)
-
+        result["products"] = [serialize_row(p) for p in result["products"]]
         return result
 
     except Exception as e:
@@ -339,9 +397,11 @@ async def save_batch(payload: BatchSaveRequest, _user: dict = Depends(get_curren
     depuis la ValidationPage PWA et les insère dans Neon.
     """
     try:
+        user_id = int(_user["sub"]) if _user.get("sub") else None
         nb_saved, historique_failures = await DBManager.upsert_products_batch(
             payload.produits,
-            source=payload.source
+            source=payload.source,
+            user_id=user_id,
         )
         resp = {"saved": nb_saved, "total": len(payload.produits)}
         if historique_failures > 0:
@@ -359,7 +419,8 @@ async def save_batch(payload: BatchSaveRequest, _user: dict = Depends(get_curren
 @app.get("/api/v1/catalogue/fournisseurs")
 async def get_fournisseurs(_user: dict = Depends(get_current_user)):
     try:
-        fournisseurs = await DBManager.get_fournisseurs()
+        user_id = int(_user["sub"]) if _user.get("sub") else None
+        fournisseurs = await DBManager.get_fournisseurs(user_id=user_id)
         return {"fournisseurs": fournisseurs}
     except Exception as e:
         logger.error("Erreur get_fournisseurs", exc_info=True)
@@ -372,7 +433,8 @@ async def get_fournisseurs(_user: dict = Depends(get_current_user)):
 @app.get("/api/v1/stats")
 async def get_stats(_user: dict = Depends(get_current_user)):
     try:
-        return await DBManager.get_stats()
+        user_id = int(_user["sub"]) if _user.get("sub") else None
+        return await DBManager.get_stats(user_id=user_id)
     except Exception as e:
         logger.error("Erreur get_stats", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
@@ -384,10 +446,11 @@ async def get_stats(_user: dict = Depends(get_current_user)):
 @app.get("/api/v1/history")
 async def get_history(limit: int = 50, _user: dict = Depends(get_current_user)):
     try:
-        rows = await DBManager.get_factures_history(limit=min(limit, 200))
-        for r in rows:
-            serialize_row(r)
-        return {"history": rows, "total": len(rows)}
+        user_id = int(_user["sub"]) if _user.get("sub") else None
+        rows = await DBManager.get_factures_history(
+            limit=min(limit, 200), user_id=user_id
+        )
+        return {"history": [serialize_row(r) for r in rows], "total": len(rows)}
     except Exception as e:
         logger.error("Erreur get_history", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
@@ -403,14 +466,10 @@ async def get_facture_pdf_url(facture_id: int, _user: dict = Depends(get_current
     Nécessaire pour Storj où l'URL directe n'est pas accessible.
     """
     try:
-        pool = await DBManager.get_pool()
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT pdf_url FROM factures WHERE id = $1", facture_id
-            )
-        if not row or not row["pdf_url"]:
+        user_id = int(_user["sub"]) if _user.get("sub") else None
+        pdf_url = await DBManager.get_facture_pdf_url(facture_id, user_id=user_id)
+        if not pdf_url:
             raise HTTPException(status_code=404, detail="PDF introuvable")
-        pdf_url = row["pdf_url"]
         presigned = StorageService.get_presigned_url_from_pdf_url(pdf_url)
         if not presigned:
             raise HTTPException(status_code=500, detail="Impossible de générer l'URL")
@@ -437,13 +496,16 @@ async def get_sync_status(_user: dict = Depends(get_current_user)):
 # ENDPOINT 9 : Reset BDD (admin — à protéger en prod)
 # ─────────────────────────────────────────────────────────────────────────────
 @app.delete("/api/v1/catalogue/reset")
-async def reset_catalogue(confirm: str = "", _admin: dict = Depends(get_admin_user)):
+async def reset_catalogue(
+    confirm: str = "", _admin: dict = Depends(get_admin_user)
+):
     if confirm != "SUPPRIMER_TOUT":
         raise HTTPException(
             status_code=400,
             detail="Passer ?confirm=SUPPRIMER_TOUT pour confirmer"
         )
-    await DBManager.truncate_products()
+    user_id = int(_admin["sub"]) if _admin.get("sub") else None
+    await DBManager.truncate_products(user_id=user_id)
     return {"message": "Catalogue vidé", "produits_restants": 0}
 
 
@@ -458,17 +520,12 @@ async def reset_catalogue(confirm: str = "", _admin: dict = Depends(get_admin_us
 async def get_price_history(product_id: int, _user: dict = Depends(get_current_user)):
     """Retourne l'historique des prix pour un produit."""
     try:
-        pool = await DBManager.get_pool()
-        async with pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT prix_ht, prix_brut, remise_pct, recorded_at
-                FROM prix_historique
-                WHERE produit_id = $1
-                ORDER BY recorded_at DESC
-                LIMIT 20
-            """, product_id)
-            result = [serialize_row(dict(r)) for r in rows]
-            return {"history": result, "product_id": product_id}
+        user_id = int(_user["sub"]) if _user.get("sub") else None
+        rows = await DBManager.get_price_history_by_product_id(
+            product_id, user_id=user_id
+        )
+        result = [serialize_row(dict(r)) for r in rows]
+        return {"history": result, "product_id": product_id}
     except Exception as e:
         logger.error("Erreur get_price_history", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
@@ -485,16 +542,19 @@ async def compare_prices(search: str = "", with_history: bool = True, _user: dic
     if not search or len(search.strip()) < 2:
         raise HTTPException(status_code=400, detail="Recherche trop courte (min 2 car.)")
     try:
+        user_id = int(_user["sub"]) if _user.get("sub") else None
         term = search.strip()
         if with_history:
-            rows = await DBManager.compare_prices_with_history(term)
+            rows = await DBManager.compare_prices_with_history(term, user_id=user_id)
         else:
-            rows = await DBManager.compare_prices(term)
+            rows = await DBManager.compare_prices(term, user_id=user_id)
+        serialized = []
         for r in rows:
-            serialize_row(r)
-            for h in r.get("price_history", []):
-                serialize_row(h)
-        return {"results": rows, "search": term, "count": len(rows)}
+            d = dict(r)
+            sr = serialize_row(d)
+            sr["price_history"] = [serialize_row(h) for h in d.get("price_history", [])]
+            serialized.append(sr)
+        return {"results": serialized, "search": term, "count": len(rows)}
     except Exception as e:
         logger.error("Erreur compare_prices", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
@@ -507,6 +567,9 @@ async def compare_prices(search: str = "", with_history: bool = True, _user: dic
 @limiter.limit("5/minute")
 async def register(request: Request, email: str = Form(...), password: str = Form(...), name: str = Form(default="")):
     """Inscription nouvel utilisateur."""
+    ok, msg = validate_password(password)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
     if len(email) > 255:
         raise HTTPException(status_code=400, detail="Email trop long")
     if len(password) > 128:
@@ -524,7 +587,9 @@ async def register(request: Request, email: str = Form(...), password: str = For
             email, pw_hash, name or email.split("@")[0]
         )
         token = create_token(row["id"], email, row["role"])
-        return {"token": token, "user_id": row["id"], "email": email}
+        resp = JSONResponse(content={"user_id": row["id"], "email": email})
+        _set_auth_cookie(resp, token)
+        return resp
 
 
 @app.post("/api/v1/auth/login")
@@ -553,19 +618,74 @@ async def login(request: Request, email: str = Form(...), password: str = Form(.
             logger.info("Rehash PBKDF2→Argon2id pour user_id=%s", user["id"])
 
         token = create_token(user["id"], user["email"], user["role"])
-        return {
-            "token": token,
+        resp = JSONResponse(content={
             "user_id": user["id"],
             "email": user["email"],
             "name": user["display_name"],
             "role": user["role"],
-        }
+        })
+        _set_auth_cookie(resp, token)
+        return resp
+
+
+def _set_auth_cookie(response: JSONResponse, token: str) -> None:
+    """Set httpOnly JWT cookie. Secure in prod, SameSite=Lax."""
+    import os
+    is_prod = os.getenv("ENVIRONMENT", "").lower() == "production"
+    response.set_cookie(
+        key="docling-token",
+        value=token,
+        httponly=True,
+        secure=is_prod,
+        samesite="lax",
+        max_age=24 * 3600,
+        path="/",
+    )
+
+
+@app.post("/api/v1/auth/logout")
+async def logout():
+    """Déconnexion — supprime le cookie JWT."""
+    resp = JSONResponse(content={"ok": True})
+    resp.delete_cookie(key="docling-token", path="/")
+    return resp
 
 
 @app.get("/api/v1/auth/me")
 async def get_me(user: dict = Depends(get_current_user)):
     """Retourne l'utilisateur connecté depuis le token Bearer."""
     return {"user_id": user["sub"], "email": user["email"], "role": user["role"]}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ENDPOINT : Export my data (RGPD / portabilité)
+# ─────────────────────────────────────────────────────────────────────────────
+@app.get("/api/v1/export/my-data")
+async def export_my_data(_user: dict = Depends(get_current_user)):
+    """
+    Retourne toutes les données de l'utilisateur (produits + factures) en JSON
+    téléchargeable. Filtrage par user_id pour isolation multi-tenant.
+    """
+    try:
+        user_id = int(_user["sub"]) if _user.get("sub") else None
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID manquant")
+        data = await DBManager.get_user_export_data(user_id)
+        data["produits"] = [serialize_row(p) for p in data["produits"]]
+        data["factures"] = [serialize_row(f) for f in data["factures"]]
+        json_str = json.dumps(data, ensure_ascii=False, indent=2)
+        return Response(
+            content=json_str,
+            media_type="application/json",
+            headers={
+                "Content-Disposition": "attachment; filename=docling-export-my-data.json",
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Erreur export my-data", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur lors de l'export")
 # ─── Racine ───────────────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
@@ -574,6 +694,34 @@ async def root():
         "docs": "/docs",
         "version": "3.0.0"
     }
+
+
+# ─── Web Vitals (Core Web Metrics) ──────────────────────────────────────────────
+@app.post("/api/vitals")
+async def receive_vitals(request: Request):
+    """
+    Reçoit les métriques Web Vitals (CLS, INP, LCP, FCP, TTFB) envoyées par sendBeacon.
+    Optionnel : persister en BDD ou envoyer à un service analytics.
+    """
+    try:
+        body = await request.json()
+        logger.info(
+            "Web Vitals: %s=%.2f (%s)",
+            body.get("name"),
+            body.get("value"),
+            body.get("rating"),
+        )
+        return {"ok": True}
+    except Exception as e:
+        logger.warning("Vitals parse error: %s", e)
+        return {"ok": False}
+
+
+# ─── Web Vitals (optionnel, pour monitoring frontend) ──────────────────────────
+@app.get("/api/vitals")
+async def vitals():
+    """Endpoint pour web-vitals / monitoring frontend."""
+    return {"status": "ok"}
 
 
 # ─── Health check ─────────────────────────────────────────────────────────────

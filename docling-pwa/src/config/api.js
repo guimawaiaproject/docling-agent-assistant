@@ -3,8 +3,7 @@ const _env = import.meta.env.VITE_API_URL || ''
 function resolveBaseURL() {
   if (_env) return _env.replace(/\/+$/, '')
   if (import.meta.env.PROD) {
-    console.warn('[api] VITE_API_URL non défini en production — fallback relatif')
-    return ''
+    throw new Error('VITE_API_URL requis en production')
   }
   return 'http://localhost:8000'
 }
@@ -25,4 +24,6 @@ export const ENDPOINTS = {
   health:       `${API_BASE_URL}/health`,
   login:        `${API_BASE_URL}/api/v1/auth/login`,
   register:     `${API_BASE_URL}/api/v1/auth/register`,
+  logout:       `${API_BASE_URL}/api/v1/auth/logout`,
+  exportMyData: `${API_BASE_URL}/api/v1/export/my-data`,
 }

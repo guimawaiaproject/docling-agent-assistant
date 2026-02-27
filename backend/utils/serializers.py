@@ -4,15 +4,21 @@ from decimal import Decimal
 from datetime import date, datetime
 
 
+def _serialize_val(v):
+    """Convert date/datetime to ISO strings, Decimal to float. Returns JSON-safe value."""
+    if v is None:
+        return v
+    if isinstance(v, (datetime, date)):
+        return v.isoformat()
+    if isinstance(v, Decimal):
+        return float(v)
+    if hasattr(v, "isoformat"):
+        return v.isoformat()
+    if hasattr(v, "__float__") and not isinstance(v, (int, float, bool)):
+        return float(v)
+    return v
+
+
 def serialize_row(row: dict) -> dict:
-    """Convert date/datetime to ISO strings, Decimal to float in-place."""
-    for k, v in row.items():
-        if isinstance(v, (datetime, date)):
-            row[k] = v.isoformat()
-        elif isinstance(v, Decimal):
-            row[k] = float(v)
-        elif hasattr(v, "isoformat"):
-            row[k] = v.isoformat()
-        elif hasattr(v, "__float__") and not isinstance(v, (int, float, bool)):
-            row[k] = float(v)
-    return row
+    """Return a COPY with date/datetime as ISO strings, Decimal as float. Does not mutate in-place."""
+    return {k: _serialize_val(v) for k, v in (row or {}).items()}

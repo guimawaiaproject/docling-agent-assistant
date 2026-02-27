@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { AlertCircle, Camera, CheckCircle2, FolderOpen, FileUp, Loader2, PackagePlus, Trash2, UploadCloud, X, Zap, Database, Sparkles } from 'lucide-react'
+import { AlertCircle, Camera, CheckCircle2, FolderOpen, FileUp, Loader2, Package, PackagePlus, Trash2, UploadCloud, X, Zap, Database, Sparkles } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useNavigate } from 'react-router-dom'
@@ -81,6 +81,8 @@ export default function ScanPage() {
   const clearQueue     = useDoclingStore(s => s.clearQueue)
   const setJobStart    = useDoclingStore(s => s.setJobStart)
   const setJobComplete = useDoclingStore(s => s.setJobComplete)
+
+  const [batchDoneModal, setBatchDoneModal] = useState(null)
   const selectedModel  = useDoclingStore(s => s.selectedModel)
 
   // Camera overlay state
@@ -219,7 +221,7 @@ export default function ScanPage() {
     },
     multiple: true,
     maxSize: 200 * 1024 * 1024,
-    noClick: true
+    noClick: false
   })
 
   const processItem = async (item, pollIntervalMs = 5000) => {
@@ -253,9 +255,11 @@ export default function ScanPage() {
       while (attempts < maxAttempts) {
         const { data: status } = await apiClient.get(ENDPOINTS.status(jobInfo.job_id), { signal: ctrl.signal })
         if (status.status === 'completed') {
+          const products = status.result?.products || []
           updateItem(item.id, {
             status: 'done', progress: 100,
-            productsAdded: status.result?.products?.length || 0
+            productsAdded: products.length,
+            products
           })
           return
         }
@@ -295,7 +299,15 @@ export default function ScanPage() {
     const queue = useDoclingStore.getState().batchQueue
     const done  = queue.filter(i => i.status === 'done').length
     const total = queue.reduce((acc, i) => acc + (i.productsAdded || 0), 0)
-    toast.success(`${done} fichier(s) trait\u00e9(s) \u2014 ${total} produits ajout\u00e9s`)
+    const allProducts = queue.filter(i => i.status === 'done').flatMap(i => i.products || [])
+    if (allProducts.length > 0) setJobComplete(allProducts, getSource())
+    setBatchDoneModal({ count: total })
+    toast.success(`${done} fichier(s) trait\u00e9(s) \u2014 ${total} produits extraits`, {
+      action: {
+        label: 'Voir le catalogue',
+        onClick: () => navigate('/catalogue')
+      }
+    })
     if (navigator.vibrate) navigator.vibrate([100, 50, 100])
   }
 
@@ -379,6 +391,53 @@ export default function ScanPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 p-5">
+
+      {/* Batch done modal */}
+      <AnimatePresence>
+        {batchDoneModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur flex items-center justify-center p-6"
+            onClick={() => setBatchDoneModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+            >
+              <div className="text-center mb-6">
+                <CheckCircle2 size={48} className="text-emerald-400 mx-auto mb-3" />
+                <h2 className="text-xl font-black text-slate-100 mb-1">
+                  {batchDoneModal.count} produit{batchDoneModal.count > 1 ? 's' : ''} extrait{batchDoneModal.count > 1 ? 's' : ''}
+                </h2>
+                <p className="text-sm text-slate-500">Que souhaitez-vous faire ?</p>
+              </div>
+              <div className="flex flex-col gap-3">
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => { setBatchDoneModal(null); navigate('/validation') }}
+                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2"
+                >
+                  <Zap size={18} />
+                  Valider les produits
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => { setBatchDoneModal(null); navigate('/catalogue') }}
+                  className="w-full py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-slate-700"
+                >
+                  <Package size={18} />
+                  Voir le catalogue
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Camera processing overlay */}
       <AnimatePresence>
@@ -683,7 +742,9 @@ export default function ScanPage() {
           </motion.button>
           <motion.button
             whileTap={{ scale: 0.95 }}
-            onClick={clearQueue}
+            onClick={() => {
+              if (window.confirm('Vider toute la file d\'attente ?')) clearQueue()
+            }}
             disabled={stats.running > 0}
             aria-label="Vider la file"
             className="px-4 py-4 bg-slate-800 hover:bg-slate-700 disabled:opacity-40

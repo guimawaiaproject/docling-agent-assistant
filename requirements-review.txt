@@ -1,0 +1,3 @@
+# Outils review optionnels — pip install -r requirements-review.txt
+# Puis : gito setup (configurer LLM API)
+gito.bot>=4.0

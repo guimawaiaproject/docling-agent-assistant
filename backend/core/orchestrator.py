@@ -34,6 +34,7 @@ class Orchestrator:
         filename:   str,
         model_id:   str = "gemini-3-flash-preview",
         source:     str = "pc",
+        user_id:    int | None = None,
     ) -> dict:
         """
         Pipeline complet :
@@ -74,7 +75,7 @@ class Orchestrator:
             await DBManager.log_facture(
                 filename=filename, statut="erreur",
                 nb_produits=0, cout_usd=0.0,
-                modele_ia=model_id, source=source
+                modele_ia=model_id, source=source, user_id=user_id,
             )
             return {
                 "success": False,
@@ -85,7 +86,7 @@ class Orchestrator:
         # ── 4+5. BDD + S3 en parallèle ─────────────────────────────
         products_dicts = [p.model_dump() for p in result.produits]
         (nb_saved, historique_failures), pdf_url = await asyncio.gather(
-            DBManager.upsert_products_batch(products_dicts, source=source),
+            DBManager.upsert_products_batch(products_dicts, source=source, user_id=user_id),
             asyncio.to_thread(
                 StorageService.upload_file,
                 file_bytes, filename, content_type=mime_type,
@@ -103,7 +104,7 @@ class Orchestrator:
         facture_id = await DBManager.log_facture(
             filename=filename, statut="traite",
             nb_produits=nb_saved, cout_usd=cout_usd,
-            modele_ia=model_id, source=source, pdf_url=pdf_url,
+            modele_ia=model_id, source=source, pdf_url=pdf_url, user_id=user_id,
         )
 
         logger.info(f"✅ {filename}: {nb_saved} produits sauvegardés, coût: ${cout_usd:.5f}")

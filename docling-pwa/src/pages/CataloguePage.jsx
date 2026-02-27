@@ -4,6 +4,7 @@ import {
     Loader2, Package, RefreshCw, Search, SortAsc, SortDesc, Users
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import ExcelJS from 'exceljs'
 import apiClient from '../services/apiClient'
@@ -128,6 +129,7 @@ async function exportExcel(data) {
 const PAGE_SIZE = 100
 
 export default function CataloguePage() {
+  const navigate = useNavigate()
   const [allProducts, setAllProducts]   = useState([])
   const [fournisseurs, setFournisseurs] = useState([])
   const [searchInput, setSearchInput]   = useState('')
@@ -141,7 +143,7 @@ export default function CataloguePage() {
   const [total,       setTotal]         = useState(0)
   const [sortKey,     setSortKey]       = useState('designation_fr')
   const [sortDir,     setSortDir]       = useState('asc')
-  const [view,        setView]          = useState('cards')
+  const [view,        setView]          = useState(() => (typeof window !== 'undefined' && window.innerWidth < 640) ? 'cards' : 'table')
   const [compareOpen, setCompareOpen]   = useState(false)
 
   const parentRef = useRef(null)
@@ -361,9 +363,41 @@ export default function CataloguePage() {
           <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-slate-600 gap-3">
-          <Package size={48} className="opacity-20" />
-          <p className="text-sm font-medium">Aucun produit trouvé</p>
+        <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-5 px-6">
+          <Package size={64} className="text-slate-600 opacity-40" />
+          <div className="text-center space-y-2">
+            <h2 className="text-lg font-bold text-slate-400">Aucun produit trouvé</h2>
+            <p className="text-sm text-slate-600 max-w-xs">
+              {famille !== 'Toutes' || fournisseur !== 'Tous' || search.trim()
+                ? 'Aucun résultat pour ces filtres. Réinitialisez ou scannez une facture.'
+                : 'Scannez une facture pour alimenter votre catalogue.'}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => navigate('/scan')}
+              data-testid="cta-scan-facture"
+              className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500
+                text-white rounded-xl text-sm font-bold transition-colors"
+            >
+              <Package size={16} />
+              Scanner une facture
+            </button>
+            {(famille !== 'Toutes' || fournisseur !== 'Tous' || search.trim()) && (
+              <button
+                onClick={() => {
+                  setFamille('Toutes')
+                  setFournisseur('Tous')
+                  setSearchInput('')
+                  setSearch('')
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700
+                  text-slate-300 rounded-xl text-sm font-bold border border-slate-700 transition-colors"
+              >
+                Réinitialiser les filtres
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div ref={parentRef} className="flex-1 overflow-auto">

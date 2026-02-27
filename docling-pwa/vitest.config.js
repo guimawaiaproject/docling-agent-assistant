@@ -7,7 +7,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/__tests__/setup.js'],
-    include: ['src/__tests__/**/*.{test,spec}.{js,jsx}'],
+    include: ['src/__tests__/**/*.{test,spec}.{js,jsx}', 'src/**/__tests__/**/*.{test,spec}.{js,jsx}'],
     env: {
       NODE_ENV: 'test',
     },
@@ -16,6 +16,9 @@ export default defineConfig({
       reporter: ['text', 'json'],
       include: ['src/**/*.{js,jsx}'],
       exclude: ['src/__tests__/**', 'src/main.jsx'],
+      thresholds: {
+        lines: 60,
+      },
     },
   },
   define: {
@@ -24,5 +27,6 @@ export default defineConfig({
     'import.meta.env.DEV': JSON.stringify(true),
     'import.meta.env.PROD': JSON.stringify(false),
     'import.meta.env.MODE': JSON.stringify('test'),
+    'import.meta.env.VITE_AUTH_REQUIRED': JSON.stringify('false'),
   },
 })

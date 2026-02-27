@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
+import { measureWebVitals } from './utils/reportWebVitals'
 import './index.css'
 
 const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN
@@ -16,6 +17,8 @@ if (SENTRY_DSN) {
     tracesSampleRate: 0.1,
   })
 }
+
+measureWebVitals()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

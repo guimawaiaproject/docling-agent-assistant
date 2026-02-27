@@ -4,6 +4,19 @@ Application d'extraction automatisée de factures fournisseurs pour le secteur B
 
 ---
 
+## Index par rôle
+
+| Rôle | Point d'entrée |
+|------|----------------|
+| **Nouveau dev / IA** | [DEVELOPER-ONBOARDING.md](DEVELOPER-ONBOARDING.md) |
+| **Profil projet (IA)** | [PROJECT-PROFILE.md](PROJECT-PROFILE.md) |
+| **Contribution** | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| **Plan finalisation** | [workflow/1_planning/PLAN-COMPLET-FINALISATION/README.md](workflow/1_planning/PLAN-COMPLET-FINALISATION/README.md) |
+| **Architecture** | [architecture/README.md](architecture/README.md) |
+| **Glossaire** | [GLOSSARY.md](GLOSSARY.md) |
+
+---
+
 ## Démarrage rapide (5 min)
 
 1. Lire **[01-ARCHITECTURE.md](01-ARCHITECTURE.md)** pour le flux
@@ -29,6 +42,26 @@ Application d'extraction automatisée de factures fournisseurs pour le secteur B
 | **[10-NOTES-AUDIT.md](10-NOTES-AUDIT.md)** | Notes d'audit, prochaines étapes |
 | **[12-EXPERT-REPORT.md](12-EXPERT-REPORT.md)** | Rapport d'expert, SWOT, roadmap, écosystème BTP |
 | **[13-PLAN-OPTIMISATION.md](13-PLAN-OPTIMISATION.md)** | Plan chronologique avec tests de vérification |
+| **[AI-INTEGRATION.md](AI-INTEGRATION.md)** | Intégration AI-first — agents, rules, commands, scripts |
+| **[workflow/README.md](workflow/README.md)** | Workflow par stages (backlog → planning → in-progress → completed) |
+| **[ai-library/README.md](ai-library/README.md)** | Bibliothèque IA complète (éditeurs, agents, tests, doc, MCP) |
+| **[DEVELOPER-ONBOARDING.md](DEVELOPER-ONBOARDING.md)** | Guide onboarding (30 min) |
+| **[PROJECT-PROFILE.md](PROJECT-PROFILE.md)** | Profil projet IA-friendly |
+| **[CONTRIBUTING.md](CONTRIBUTING.md)** | Workflow contribution |
+| **[GLOSSARY.md](GLOSSARY.md)** | Glossaire BTP, technique, IA |
+| **[architecture/README.md](architecture/README.md)** | ADR, décisions architecturales |
+| **[workflow/1_planning/PLAN-COMPLET-FINALISATION/README.md](workflow/1_planning/PLAN-COMPLET-FINALISATION/README.md)** | **Plan complet finalisation** — étapes, anti-régression |
+
+---
+
+## Agent Skills (IA)
+
+Le projet utilise le format [Agent Skills](https://agentskills.io) pour guider les agents IA :
+
+- **neon-postgres** : Neon, PostgreSQL serverless, asyncpg
+- **docling-factures** : Extraction factures, API, catalogue BTP
+
+Voir [AGENTS.md](../AGENTS.md) et `.cursor/rules/agent-skills.mdc`. Validation : `make validate-skills`.
 
 ---
 

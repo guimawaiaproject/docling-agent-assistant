@@ -36,13 +36,38 @@ jobs:
         run: |
           pip install -r requirements-dev.txt
           pip install -r tests/requirements-test.txt
+          pip install pytest-cov pip-audit
 
-      - name: Run tests
-        run: pytest tests/ -v --tb=short
+      - name: Run migrations
+        run: alembic upgrade head
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/docling_test
+
+      - name: Start API server
+        run: python -m uvicorn api:app --host 127.0.0.1 --port 8000 &
         env:
           GEMINI_API_KEY: dummy-key-for-tests
           DATABASE_URL: postgresql://test:test@localhost:5432/docling_test
           JWT_SECRET: ci-test-secret-for-jwt-32chars-long
+
+      - name: Wait for server
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8000/health && exit 0
+            sleep 1
+          done
+          exit 1
+
+      - name: Run tests
+        run: pytest tests/ backend/tests/ -v --tb=short --cov=backend --cov-fail-under=65
+        env:
+          GEMINI_API_KEY: dummy-key-for-tests
+          DATABASE_URL: postgresql://test:test@localhost:5432/docling_test
+          JWT_SECRET: ci-test-secret-for-jwt-32chars-long
+
+      - name: pip-audit (warning only)
+        run: pip-audit -r requirements.txt
+        continue-on-error: true
 
   frontend-build:
     runs-on: ubuntu-latest
@@ -62,8 +87,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: npm audit (warning only)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Run tests with coverage
+        run: npx vitest run --coverage --coverage.thresholds.lines=60
+
       - name: Build
         run: npm run build
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://api.example.com' }}
+          VITE_AUTH_REQUIRED: 'true'
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -88,6 +123,9 @@ jobs:
 
       - name: Run ruff
         run: ruff check .
+
+      - name: Validate Agent Skills
+        run: python scripts/validate_skills.py
 
   frontend-lint:
     runs-on: ubuntu-latest

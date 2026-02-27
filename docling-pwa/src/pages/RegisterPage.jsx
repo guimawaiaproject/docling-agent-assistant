@@ -4,14 +4,13 @@ import { toast } from 'sonner'
 import apiClient from '../services/apiClient'
 import { ENDPOINTS } from '../config/api'
 
-const TOKEN_KEY = 'docling-token'
-
 function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || '')
 }
 
 function validatePassword(password) {
-  return (password || '').length >= 8
+  const p = password || ''
+  return p.length >= 8 && /[A-Z]/.test(p) && /\d/.test(p)
 }
 
 export default function RegisterPage() {
@@ -39,9 +38,9 @@ export default function RegisterPage() {
       formData.append('name', name || email.split('@')[0])
       const { data } = await apiClient.post(ENDPOINTS.register, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        withCredentials: true,
       })
-      if (data?.token) {
-        localStorage.setItem(TOKEN_KEY, data.token)
+      if (data?.user_id) {
         toast.success('Inscription réussie')
         navigate('/scan', { replace: true })
       } else {
@@ -99,7 +98,7 @@ export default function RegisterPage() {
 
           <div>
             <label htmlFor="register-password" className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              Mot de passe (min. 8 caractères)
+              Mot de passe (8 car. min, 1 majuscule, 1 chiffre)
             </label>
             <input
               id="register-password"

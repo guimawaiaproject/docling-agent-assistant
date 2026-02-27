@@ -1,8 +1,10 @@
-import { lazy, Suspense } from 'react'
+import { Fragment, lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster } from 'sonner'
+import CommandPalette from './components/CommandPalette'
 import Navbar from './components/Navbar'
 import ProtectedRoute from './components/ProtectedRoute'
+import { FEATURES } from './config/features'
 
 const ScanPage       = lazy(() => import('./pages/ScanPage'))
 const ValidationPage = lazy(() => import('./pages/ValidationPage'))
@@ -30,15 +32,20 @@ function LayoutWithNav({ children }) {
   )
 }
 
+// Si AUTH_REQUIRED=false → app accessible sans token
+// Si AUTH_REQUIRED=true → ProtectedRoute actif, redirection /login si pas de token
+const RouteWrapper = FEATURES.AUTH_REQUIRED ? ProtectedRoute : Fragment
+
 export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 pb-20 text-slate-100">
+      <CommandPalette />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/login"  element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/*" element={
-            <ProtectedRoute>
+            <RouteWrapper>
               <LayoutWithNav>
                 <Routes>
                   <Route path="/"           element={<Navigate to="/scan" replace />} />
@@ -50,7 +57,7 @@ export default function App() {
                   <Route path="/devis"      element={<DevisPage />} />
                 </Routes>
               </LayoutWithNav>
-            </ProtectedRoute>
+            </RouteWrapper>
           } />
         </Routes>
       </Suspense>
