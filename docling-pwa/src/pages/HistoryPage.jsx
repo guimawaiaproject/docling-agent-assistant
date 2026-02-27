@@ -71,7 +71,9 @@ export default function HistoryPage() {
     }
     setRetrying(facture.id)
     try {
-      const response = await fetch(facture.pdf_url)
+      const { data } = await apiClient.get(ENDPOINTS.pdfUrl(facture.id))
+      const pdfFetchUrl = data?.url || facture.pdf_url
+      const response = await fetch(pdfFetchUrl)
       if (!response.ok) throw new Error('Fichier inaccessible')
       const blob = await response.blob()
       const file = new File([blob], facture.filename || 'facture.pdf', { type: blob.type })
