@@ -27,6 +27,10 @@ Ce projet utilise le format [Agent Skills](https://agentskills.io/specification)
 | **ai-library** | `.cursor/rules/ai-library.mdc` | Bibliothèque IA — outils à suggérer (alwaysApply) |
 | **development-workflow** | `.cursor/rules/development-workflow.mdc` | **Méthode dev — ne pas casser, valider avant/après (alwaysApply)** |
 | **senior-devops-workflow** | `.cursor/rules/senior-devops-workflow.mdc` | **Routine DevOps — validate, review, docs (alwaysApply)** |
+| **debug-rescue** | `.cursor/rules/debug-rescue.mdc` | **Bloqué → doc projet + web search. Jamais régresser (.cursor, .agents)** |
+| **dev-access-free** | `.cursor/rules/dev-access-free.mdc` | **Accès dev sans login — maintenir config, ne jamais supprimer LoginPage** |
+| **agent-executes** | `.cursor/rules/agent-executes.mdc` | **L'agent exécute — ne pas déléguer à l'utilisateur** |
+| **sonarqube-audit** | `.cursor/rules/sonarqube-audit.mdc` | SonarQube MCP — analyse qualité/sécurité (si configuré) |
 
 ## Agents Cursor
 
@@ -46,6 +50,7 @@ Ce projet utilise le format [Agent Skills](https://agentskills.io/specification)
 | Command | Fichier | Usage |
 |---------|---------|-------|
 | validate-all | `.cursor/commands/validate-all.md` | Lint + tests + skills |
+| verify-project | `scripts/verify_project.ps1` | Vérification complète (Audit Bêton, déploiement) |
 | setup-dev | `.cursor/commands/setup-dev.md` | Installation complète |
 | generate-migration | `.cursor/commands/generate-migration.md` | Créer migration |
 | run-full-tests | `.cursor/commands/run-full-tests.md` | Tous les tests |
@@ -55,6 +60,8 @@ Ce projet utilise le format [Agent Skills](https://agentskills.io/specification)
 | **review** | `.cursor/commands/review.md` | Revue code (Security Reviewer) |
 | **validate** | `.cursor/commands/validate.md` | make validate-all |
 | **routine** | `.cursor/commands/routine.md` | make routine (health-check + validate-all) |
+| **audit-integral** | `.cursor/commands/audit-integral.md` | Audit complet projet (Expert Dev, 8 phases) |
+| **audit-beton** | `.cursor/commands/audit-beton.md` | Audit Bêton v3 — 10 phases avec agents spécialisés |
 
 ## Flux multi-agents (générique)
 
@@ -67,7 +74,10 @@ make validate-skills    # Valider le format SKILL.md
 make skills-to-prompt   # Générer <available_skills> XML
 make validate-env      # Valider variables .env
 make health-check      # Health API + DB
+make verify-project    # Vérification complète (Audit Bêton, déploiement)
 ```
+
+**verify-project** : aligné sur `AUDIT_BETON/10_RAPPORT_FINAL.md`. Vérifie render.yaml, deploy.yml, pip-audit.
 
 ## Structure d'un skill
 

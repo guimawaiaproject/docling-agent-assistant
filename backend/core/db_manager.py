@@ -14,7 +14,7 @@ import json
 import logging
 import re
 from datetime import date, datetime
-from typing import Any, Optional
+from typing import Any
 
 import asyncpg
 
@@ -126,7 +126,7 @@ def _upsert_params(product: dict, source: str, user_id: int | None) -> tuple:
 
 
 class DBManager:
-    _pool: Optional[asyncpg.Pool] = None
+    _pool: asyncpg.Pool | None = None
 
     @classmethod
     async def get_pool(cls) -> asyncpg.Pool:
@@ -220,11 +220,11 @@ class DBManager:
     @classmethod
     async def get_catalogue(
         cls,
-        famille:     Optional[str] = None,
-        fournisseur: Optional[str] = None,
-        search:      Optional[str] = None,
+        famille:     str | None = None,
+        fournisseur: str | None = None,
+        search:      str | None = None,
         limit:       int = 50,
-        cursor:      Optional[str] = None,
+        cursor:      str | None = None,
         user_id:     int | None = None,
     ) -> dict[str, Any]:
         pool = await cls.get_pool()
@@ -499,6 +499,29 @@ class DBManager:
                     "SELECT pdf_url FROM factures WHERE id = $1", facture_id
                 )
             return row["pdf_url"] if row and row["pdf_url"] else None
+
+    @classmethod
+    async def get_user_export_data(cls, user_id: int) -> dict:
+        """Retourne toutes les données utilisateur pour export RGPD (produits + factures)."""
+        pool = await cls.get_pool()
+        async with pool.acquire() as conn:
+            produits = await conn.fetch(
+                """SELECT id, fournisseur, designation_raw, designation_fr, famille, unite,
+                          prix_brut_ht, remise_pct, prix_remise_ht, prix_ttc_iva21,
+                          numero_facture, date_facture, confidence, source, updated_at
+                   FROM produits WHERE user_id = $1 ORDER BY updated_at DESC""",
+                user_id,
+            )
+            factures = await conn.fetch(
+                """SELECT id, filename, statut, nb_produits_extraits, cout_api_usd,
+                          modele_ia, source, pdf_url, created_at
+                   FROM factures WHERE user_id = $1 ORDER BY created_at DESC""",
+                user_id,
+            )
+            return {
+                "produits": [dict(r) for r in produits],
+                "factures": [dict(r) for r in factures],
+            }
 
     @classmethod
     async def get_fournisseurs(cls, user_id: int | None = None) -> list[str]:

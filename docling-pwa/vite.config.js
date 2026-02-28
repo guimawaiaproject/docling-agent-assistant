@@ -1,9 +1,10 @@
+/// <reference types="vitest/config" />
 import basicSsl from '@vitejs/plugin-basic-ssl'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     basicSsl(),
@@ -32,10 +33,24 @@ export default defineConfig({
       }
     })
   ],
+  define: mode === 'development'
+    ? { 'import.meta.env.VITE_AUTH_REQUIRED': JSON.stringify(process.env.VITE_AUTH_REQUIRED ?? 'false') }
+    : {},
   server: {
     port: 5173,
     host: true,
     https: true
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/__tests__/setup.js'],
+    include: ['src/__tests__/**/*.{test,spec}.{js,jsx}', 'src/**/__tests__/**/*.{test,spec}.{js,jsx}'],
+    env: { NODE_ENV: 'test' },
+    define: {
+      'import.meta.env.VITE_API_URL': JSON.stringify('http://localhost:8000'),
+      'import.meta.env.VITE_AUTH_REQUIRED': JSON.stringify('false'),
+    },
   },
   build: {
     rollupOptions: {
@@ -52,4 +67,4 @@ export default defineConfig({
       }
     }
   }
-})
+}))

@@ -6,7 +6,7 @@ Lancer : locust -f tests/06_performance/locustfile.py --host=http://localhost:80
 import uuid
 
 from faker import Faker
-from locust import HttpUser, task, between
+from locust import HttpUser, between, task
 
 fake = Faker("fr_FR")
 

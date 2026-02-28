@@ -2,7 +2,6 @@
 Tests de performance — temps de réponse réels.
 """
 
-import os
 import time
 
 import pytest

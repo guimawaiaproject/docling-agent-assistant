@@ -75,3 +75,7 @@ Si vous préférez Tailwind v4 :
 4. Dans `index.css` : `@import "tailwindcss";`
 
 **Note** : Sur certains environnements Windows avec chemins contenant des espaces, `@tailwindcss/vite` peut ne pas se résoudre correctement.
+
+## Voir aussi
+
+- [docs/FIX-NPM-TAR-ENTRY-WINDOWS.md](FIX-NPM-TAR-ENTRY-WINDOWS.md) — erreur `npm warn tar TAR_ENTRY_ERROR ENOENT` sur Windows

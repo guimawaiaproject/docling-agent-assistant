@@ -9,7 +9,6 @@ import hmac
 import logging
 import os
 import time
-from typing import Optional
 
 import jwt
 from argon2 import PasswordHasher
@@ -46,7 +45,7 @@ def create_token(user_id: int, email: str, role: str = "user") -> str:
     return jwt.encode(payload, _get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
-def verify_token(token: str) -> Optional[dict]:
+def verify_token(token: str) -> dict | None:
     """Verify and decode a JWT token. Returns payload dict or None."""
     try:
         data = jwt.decode(token, _get_jwt_secret(), algorithms=[JWT_ALGORITHM])

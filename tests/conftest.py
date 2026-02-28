@@ -6,7 +6,7 @@ Fixtures réelles : serveur, DB, utilisateur, client authentifié.
 import os
 import time
 import uuid
-from typing import Generator
+from collections.abc import Generator
 
 import httpx
 import pytest
@@ -72,8 +72,8 @@ def real_db_connection() -> Generator:
 @pytest.fixture(scope="function")
 def unique_user() -> dict:
     """Génère un utilisateur unique et réaliste pour chaque test."""
-    import secrets
     import random
+    import secrets
     pwd = f"Test@{secrets.token_hex(8)}!{random.randint(100, 999)}"
     return {
         "email": f"test_{uuid.uuid4().hex[:8]}@{fake.domain_name()}",

@@ -31,8 +31,9 @@ def check_api(url: str = "http://localhost:8000") -> tuple[bool, str]:
 def check_db() -> tuple[bool, str]:
     """Vérifie la connexion PostgreSQL via l'API (si disponible) ou asyncpg."""
     try:
-        from backend.core.config import Config
         import asyncpg
+
+        from backend.core.config import Config
 
         async def _check():
             conn = await asyncpg.connect(Config.DATABASE_URL)

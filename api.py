@@ -19,10 +19,19 @@ import mimetypes
 import os
 import uuid
 from contextlib import asynccontextmanager
-from typing import Optional
 
 import sentry_sdk
-from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from slowapi import Limiter
@@ -31,23 +40,23 @@ from slowapi.util import get_remote_address
 
 from backend.core.config import Config
 from backend.core.db_manager import DBManager
-from backend.utils.serializers import serialize_row
-from backend.services.auth_service import (
-    create_token,
-    verify_token,
-    hash_password,
-    verify_password,
-    needs_rehash,
-    validate_password,
-)
-from backend.services.storage_service import StorageService
 from backend.core.orchestrator import Orchestrator
 from backend.schemas.invoice import BatchSaveRequest
+from backend.services.auth_service import (
+    create_token,
+    hash_password,
+    needs_rehash,
+    validate_password,
+    verify_password,
+    verify_token,
+)
+from backend.services.storage_service import StorageService
 from backend.services.watchdog_service import (
     get_watchdog_status,
     start_watchdog,
     stop_watchdog,
 )
+from backend.utils.serializers import serialize_row
 
 # ─── Sentry — error monitoring ────────────────────────────────────────────────
 _ENV = os.getenv("ENVIRONMENT", "production")
@@ -70,22 +79,30 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 # ─── Auth dependencies ────────────────────────────────────────────────────────
+_GUEST_USER_ID: int | None = None  # Rempli au démarrage si FREE_ACCESS_MODE
+
+
 async def get_current_user(
     request: Request,
     authorization: str = Header(default="", alias="Authorization"),
 ) -> dict:
-    """Extract and validate token from Cookie (httpOnly) or Authorization header."""
+    """Extract and validate token from Cookie or Authorization. Si FREE_ACCESS_MODE et pas de token → guest."""
     token = None
     if authorization.startswith("Bearer "):
         token = authorization[7:]
     if not token:
         token = request.cookies.get("docling-token")
-    if not token:
-        raise HTTPException(status_code=401, detail="Token manquant")
-    payload = verify_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Token invalide ou expiré")
-    return payload
+
+    if token:
+        payload = verify_token(token)
+        if payload:
+            return payload
+
+    # Accès free provisoire : pas de token → guest (si activé)
+    if Config.FREE_ACCESS_MODE and _GUEST_USER_ID is not None:
+        return {"sub": str(_GUEST_USER_ID), "email": "guest@free.provisional", "role": "user"}
+
+    raise HTTPException(status_code=401, detail="Token manquant")
 
 
 async def get_admin_user(user: dict = Depends(get_current_user)) -> dict:
@@ -151,11 +168,30 @@ def _sanitize_job_error(err: Exception, tripped: bool = False) -> str:
 # ─── Lifespan ─────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _GUEST_USER_ID
     # Démarrage
     Config.validate()
     await DBManager.get_pool()
     await DBManager.run_migrations()
-    loop = asyncio.get_event_loop()
+
+    # Accès free provisoire : créer ou récupérer l'utilisateur guest
+    if Config.FREE_ACCESS_MODE:
+        pool = await DBManager.get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM users WHERE email = $1", "guest@free.provisional"
+            )
+            if not row:
+                guest_hash = hash_password("guest-no-login-provisional")
+                row = await conn.fetchrow(
+                    """INSERT INTO users (email, password_hash, display_name, role)
+                       VALUES ($1, $2, $3, $4) RETURNING id""",
+                    "guest@free.provisional", guest_hash, "Invité (accès libre)", "user",
+                )
+            _GUEST_USER_ID = row["id"]
+        logger.info("Accès free provisoire activé (guest user_id=%s)", _GUEST_USER_ID)
+
+    loop = asyncio.get_running_loop()
     start_watchdog(Config.DEFAULT_MODEL, loop)
     logger.info("🚀 Docling Agent v3 démarré")
     yield
@@ -201,6 +237,8 @@ async def _security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    if os.getenv("ENVIRONMENT", "").lower() == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 
@@ -235,7 +273,9 @@ _CHUNK_SIZE = 256 * 1024  # 256 Ko
 # ENDPOINT 1 : Process facture (mode async avec job_id)
 # ─────────────────────────────────────────────────────────────────────────────
 @app.post("/api/v1/invoices/process")
+@limiter.limit("20/minute")
 async def process_invoice(
+    request: Request,
     background_tasks: BackgroundTasks,
     file:   UploadFile = File(...),
     model:  str        = Form(default="gemini-3-flash-preview"),
@@ -357,11 +397,11 @@ async def get_job_status(job_id: str, _user: dict = Depends(get_current_user)):
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/api/v1/catalogue")
 async def get_catalogue(
-    famille:      Optional[str] = None,
-    fournisseur:  Optional[str] = None,
-    search:       Optional[str] = None,
+    famille:      str | None = None,
+    fournisseur:  str | None = None,
+    search:       str | None = None,
     limit:        int           = 50,
-    cursor:       Optional[str] = None,
+    cursor:       str | None = None,
     _user: dict = Depends(get_current_user),
 ):
     """
@@ -382,7 +422,7 @@ async def get_catalogue(
         result["products"] = [serialize_row(p) for p in result["products"]]
         return result
 
-    except Exception as e:
+    except Exception:
         logger.error("Erreur get_catalogue", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
@@ -408,7 +448,7 @@ async def save_batch(payload: BatchSaveRequest, _user: dict = Depends(get_curren
             resp["partial_success"] = True
             resp["historique_errors"] = historique_failures
         return resp
-    except Exception as e:
+    except Exception:
         logger.error("Erreur batch save", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
@@ -422,7 +462,7 @@ async def get_fournisseurs(_user: dict = Depends(get_current_user)):
         user_id = int(_user["sub"]) if _user.get("sub") else None
         fournisseurs = await DBManager.get_fournisseurs(user_id=user_id)
         return {"fournisseurs": fournisseurs}
-    except Exception as e:
+    except Exception:
         logger.error("Erreur get_fournisseurs", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
@@ -435,7 +475,7 @@ async def get_stats(_user: dict = Depends(get_current_user)):
     try:
         user_id = int(_user["sub"]) if _user.get("sub") else None
         return await DBManager.get_stats(user_id=user_id)
-    except Exception as e:
+    except Exception:
         logger.error("Erreur get_stats", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
@@ -451,7 +491,7 @@ async def get_history(limit: int = 50, _user: dict = Depends(get_current_user)):
             limit=min(limit, 200), user_id=user_id
         )
         return {"history": [serialize_row(r) for r in rows], "total": len(rows)}
-    except Exception as e:
+    except Exception:
         logger.error("Erreur get_history", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
@@ -476,7 +516,7 @@ async def get_facture_pdf_url(facture_id: int, _user: dict = Depends(get_current
         return {"url": presigned, "expires_in": 3600}
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.error("Erreur get_facture_pdf_url", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
@@ -526,7 +566,7 @@ async def get_price_history(product_id: int, _user: dict = Depends(get_current_u
         )
         result = [serialize_row(dict(r)) for r in rows]
         return {"history": result, "product_id": product_id}
-    except Exception as e:
+    except Exception:
         logger.error("Erreur get_price_history", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 # ---------------------------------------------------------------------------
@@ -555,7 +595,7 @@ async def compare_prices(search: str = "", with_history: bool = True, _user: dic
             sr["price_history"] = [serialize_row(h) for h in d.get("price_history", [])]
             serialized.append(sr)
         return {"results": serialized, "search": term, "count": len(rows)}
-    except Exception as e:
+    except Exception:
         logger.error("Erreur compare_prices", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
@@ -630,7 +670,6 @@ async def login(request: Request, email: str = Form(...), password: str = Form(.
 
 def _set_auth_cookie(response: JSONResponse, token: str) -> None:
     """Set httpOnly JWT cookie. Secure in prod, SameSite=Lax."""
-    import os
     is_prod = os.getenv("ENVIRONMENT", "").lower() == "production"
     response.set_cookie(
         key="docling-token",
@@ -683,7 +722,7 @@ async def export_my_data(_user: dict = Depends(get_current_user)):
         )
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.error("Erreur export my-data", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur lors de l'export")
 # ─── Racine ───────────────────────────────────────────────────────────────────

@@ -5,7 +5,6 @@ Tests API — catalogue, batch, fournisseurs, compare, price-history.
 import uuid
 
 import httpx
-
 from faker import Faker
 
 fake = Faker("fr_FR")

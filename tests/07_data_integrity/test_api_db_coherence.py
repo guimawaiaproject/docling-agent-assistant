@@ -4,8 +4,6 @@ Tests d'intégrité — cohérence API ↔ DB.
 
 import uuid
 
-import pytest
-
 
 def test_batch_then_catalogue_matches_db(
     authenticated_client,

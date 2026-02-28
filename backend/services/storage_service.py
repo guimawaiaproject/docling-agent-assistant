@@ -6,8 +6,7 @@ Utilise boto3 avec endpoint configurable.
 
 import hashlib
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
@@ -43,7 +42,7 @@ class StorageService:
         file_bytes: bytes,
         filename: str,
         content_type: str = "application/pdf",
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Upload un fichier vers le bucket S3.
         Retourne l'URL publique ou None si le stockage n'est pas configure.
@@ -55,7 +54,7 @@ class StorageService:
             return None
 
         file_hash = hashlib.md5(file_bytes).hexdigest()[:8]
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         safe_name = filename.replace(" ", "_").replace("/", "_")
         key = f"{now.strftime('%Y/%m')}/{file_hash}_{safe_name}"
 
@@ -75,7 +74,7 @@ class StorageService:
             return None
 
     @classmethod
-    def _extract_key_from_url(cls, pdf_url: str) -> Optional[str]:
+    def _extract_key_from_url(cls, pdf_url: str) -> str | None:
         """
         Extrait la clé S3 depuis une URL au format endpoint/bucket/key.
         Retourne None si l'URL ne correspond pas au format attendu.
@@ -88,7 +87,7 @@ class StorageService:
         return pdf_url[len(prefix):]
 
     @classmethod
-    def get_presigned_url_from_pdf_url(cls, pdf_url: str, expires_in: int = 3600) -> Optional[str]:
+    def get_presigned_url_from_pdf_url(cls, pdf_url: str, expires_in: int = 3600) -> str | None:
         """
         Génère une URL pré-signée à partir de pdf_url (format endpoint/bucket/key).
         Nécessaire pour Storj où l'URL directe n'est pas accessible.
@@ -101,7 +100,7 @@ class StorageService:
         return presigned if presigned else pdf_url
 
     @classmethod
-    def get_presigned_url(cls, key: str, expires_in: int = 3600) -> Optional[str]:
+    def get_presigned_url(cls, key: str, expires_in: int = 3600) -> str | None:
         """Genere une URL pre-signee pour acces temporaire."""
         client = cls._get_client()
         if client is None:

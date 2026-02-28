@@ -11,6 +11,9 @@ ruff check api.py backend/ scripts/ tests/ migrations/
 echo "=== 2. Lint frontend ==="
 (cd docling-pwa && npm run lint)
 
+echo "=== 2b. Build frontend (PostCSS/Tailwind) ==="
+(cd docling-pwa && VITE_API_URL=http://localhost:8000 npx vite build)
+
 echo "=== 3. Validate skills ==="
 python scripts/validate_skills.py
 

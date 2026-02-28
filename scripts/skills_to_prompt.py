@@ -55,11 +55,11 @@ def main() -> int:
         name = front.get("name", "")
         desc = front.get("description", "")
         location = (skill_dir / "SKILL.md").resolve()
-        print(f'  <skill>')
+        print('  <skill>')
         print(f'    <name>{name}</name>')
         print(f'    <description>{desc}</description>')
         print(f'    <location>{location}</location>')
-        print(f'  </skill>')
+        print('  </skill>')
     print("</available_skills>")
     return 0
 

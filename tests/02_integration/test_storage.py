@@ -3,7 +3,6 @@ Tests d'intégration StorageService réel — zéro mock.
 Upload S3/Storj réel si configuré, sinon skip.
 """
 
-import os
 
 import pytest
 

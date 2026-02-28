@@ -5,8 +5,6 @@ _parse_date, _upsert_params.
 
 from datetime import date, datetime
 
-import pytest
-
 from backend.core.db_manager import _parse_date, _upsert_params
 
 

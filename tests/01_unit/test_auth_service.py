@@ -6,15 +6,12 @@ import importlib
 import os
 import time
 
-import pytest
-
 from backend.services.auth_service import (
     create_token,
-    verify_token,
     hash_password,
-    verify_password,
     needs_rehash,
-    _verify_pbkdf2,
+    verify_password,
+    verify_token,
 )
 
 
@@ -48,7 +45,8 @@ class TestPasswordHashing:
         assert not needs_rehash(hashed)
 
     def test_needs_rehash_on_legacy_pbkdf2(self):
-        import hashlib, os as _os
+        import hashlib
+        import os as _os
         salt = _os.urandom(16)
         h = hashlib.pbkdf2_hmac("sha256", b"test", salt, 100000)
         legacy = f"{salt.hex()}:{h.hex()}"

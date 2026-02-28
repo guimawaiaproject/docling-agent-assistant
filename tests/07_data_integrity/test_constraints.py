@@ -4,8 +4,6 @@ Tests d'intégrité — contrainte UNIQUE(designation_raw, fournisseur).
 
 import uuid
 
-import pytest
-
 
 def test_upsert_same_product_no_duplicate(
     authenticated_client,

@@ -4,8 +4,6 @@ Tests d'intégrité — atomicité des transactions.
 
 import uuid
 
-import pytest
-
 
 def test_batch_partial_invalid_does_not_corrupt(
     authenticated_client,

@@ -3,8 +3,8 @@ Configuration centralisée — Docling Agent v3
 Toutes les variables d'environnement validées au démarrage via pydantic-settings.
 """
 
-import sys
 import logging
+import sys
 from pathlib import Path
 from typing import ClassVar
 
@@ -35,6 +35,7 @@ class _Settings(BaseSettings):
     JWT_EXPIRY_HOURS: int = 24
     SENTRY_DSN: str = ""
     ENVIRONMENT: str = "production"
+    FREE_ACCESS_MODE: bool = False  # Accès provisoire sans auth (guest partagé)
 
     MODELS_DISPONIBLES: ClassVar[dict[str, str]] = {
         "gemini-3-flash-preview": "models/gemini-3-flash-preview",
@@ -78,6 +79,8 @@ class _Settings(BaseSettings):
             errors.append("DATABASE_URL doit commencer par postgresql://")
         if not self.JWT_SECRET:
             errors.append("JWT_SECRET manquant dans .env")
+        elif len(self.JWT_SECRET) < 32:
+            errors.append("JWT_SECRET doit faire au moins 32 caractères pour la sécurité")
         if self.DEFAULT_AI_MODEL not in self.MODELS_DISPONIBLES:
             errors.append(
                 f"DEFAULT_AI_MODEL='{self.DEFAULT_AI_MODEL}' invalide. "
@@ -122,6 +125,7 @@ class Config:
     JWT_EXPIRY_HOURS:   int       = _settings.JWT_EXPIRY_HOURS
     SENTRY_DSN:         str       = _settings.SENTRY_DSN
     ENVIRONMENT:        str       = _settings.ENVIRONMENT
+    FREE_ACCESS_MODE:   bool      = _settings.FREE_ACCESS_MODE
 
     @classmethod
     def validate(cls) -> None:

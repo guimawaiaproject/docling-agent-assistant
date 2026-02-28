@@ -38,6 +38,7 @@ def test_expired_token_rejected(ensure_server_running: str):
 def test_tampered_token_rejected(ensure_server_running: str, unique_user: dict):
     """Token modifié → 401."""
     import httpx
+
     from backend.services.auth_service import create_token
 
     token = create_token(user_id=1, email=unique_user["email"])

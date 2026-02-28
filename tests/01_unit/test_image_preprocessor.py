@@ -1,7 +1,8 @@
 """Tests pour ImagePreprocessor — zéro mock."""
-import pytest
-import numpy as np
 import cv2
+import numpy as np
+import pytest
+
 from backend.services.image_preprocessor import ImagePreprocessor
 
 

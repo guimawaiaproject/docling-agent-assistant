@@ -1,7 +1,7 @@
 """Tests pour GeminiService (parsing, schema) — zéro mock, pas d'appel API."""
 import json
-import pytest
-from backend.schemas.invoice import Product, InvoiceExtractionResult
+
+from backend.schemas.invoice import InvoiceExtractionResult, Product
 from backend.services.gemini_service import RESPONSE_SCHEMA, SYSTEM_PROMPT
 
 

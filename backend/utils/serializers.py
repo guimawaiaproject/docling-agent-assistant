@@ -1,7 +1,7 @@
 """Shared serialization utilities for asyncpg Record → JSON-safe dict."""
 
-from decimal import Decimal
 from datetime import date, datetime
+from decimal import Decimal
 
 
 def _serialize_val(v):

@@ -6,7 +6,6 @@ Conformité facturation électronique obligatoire sept. 2026.
 
 import logging
 from io import BytesIO
-from typing import Optional
 
 from lxml import etree
 
@@ -45,7 +44,7 @@ def _extract_float(el, xpath: str, default: float = 0.0) -> float:
     return default
 
 
-def extract_from_facturx_pdf(pdf_bytes: bytes) -> Optional[InvoiceExtractionResult]:
+def extract_from_facturx_pdf(pdf_bytes: bytes) -> InvoiceExtractionResult | None:
     """
     Extrait les produits depuis un PDF Factur-X/ZUGFeRD.
     Retourne InvoiceExtractionResult si succès, None sinon (pas Factur-X ou erreur).

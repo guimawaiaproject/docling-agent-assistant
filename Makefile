@@ -1,7 +1,7 @@
 # Docling Agent v3 — Developer commands
 # Usage: make <target>
 
-.PHONY: install dev test lint docker-up docker-down migrate migrate-down validate-skills skills-to-prompt validate-env health-check validate-all review
+.PHONY: install dev test lint docker-up docker-down migrate migrate-down validate-skills skills-to-prompt validate-env health-check validate-all verify-project review
 
 # Install all dependencies (Python + Node)
 install:
@@ -58,6 +58,12 @@ health-check:
 # Validation complète (lint + tests + skills) — après toute modification
 validate-all:
 	@bash scripts/validate_all.sh
+
+# Vérification complète projet (Audit Bêton aligné)
+verify-project:
+	@if command -v pwsh >/dev/null 2>&1; then pwsh -File scripts/verify_project.ps1; \
+	elif command -v powershell >/dev/null 2>&1; then powershell -ExecutionPolicy Bypass -File scripts/verify_project.ps1; \
+	else bash scripts/verify_project.sh; fi
 
 # Review code (ruff + gito si installé)
 review:

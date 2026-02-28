@@ -4,9 +4,8 @@ Validation stricte des données extraites par Gemini.
 Auto-calcul TVA, confidence score, normalisation multilingue.
 """
 
-from typing import Optional
-from pydantic import BaseModel, Field, model_validator
 
+from pydantic import BaseModel, Field, model_validator
 
 FAMILLES_VALIDES = {
     "Armature", "Cloison", "Climatisation", "Plomberie", "Électricité",
@@ -25,8 +24,8 @@ class Product(BaseModel):
     remise_pct:       float          = Field(default=0.0, ge=0, le=100)
     prix_remise_ht:   float          = Field(default=0.0, ge=0)
     prix_ttc_iva21:   float          = Field(default=0.0, ge=0)
-    numero_facture:   Optional[str]  = None
-    date_facture:     Optional[str]  = None
+    numero_facture:   str | None  = None
+    date_facture:     str | None  = None
     confidence:       str            = Field(default="high")      # high | low
 
     @model_validator(mode="after")
@@ -60,9 +59,9 @@ class Product(BaseModel):
 
 class InvoiceExtractionResult(BaseModel):
     produits:         list[Product]
-    fournisseur_detecte: Optional[str] = None
-    numero_facture:   Optional[str]    = None
-    date_facture:     Optional[str]    = None
+    fournisseur_detecte: str | None = None
+    numero_facture:   str | None    = None
+    date_facture:     str | None    = None
     langue_detectee:  str              = "es"   # es | ca | fr
     nb_lignes_brutes: int              = 0
     tokens_used:      int              = 0
@@ -71,3 +70,18 @@ class InvoiceExtractionResult(BaseModel):
 class BatchSaveRequest(BaseModel):
     produits: list[dict]
     source:   str = "pc"
+
+    @model_validator(mode="after")
+    def validate_produits(self) -> "BatchSaveRequest":
+        """Valide que chaque produit a les champs requis. Limite 500 anti-DoS."""
+        max_produits = 500
+        if len(self.produits) > max_produits:
+            raise ValueError(f"Maximum {max_produits} produits par requête")
+        for i, p in enumerate(self.produits):
+            if not isinstance(p, dict):
+                raise ValueError(f"produits[{i}] doit être un dict")
+            if not p.get("fournisseur") or not p.get("designation_raw") or not p.get("designation_fr"):
+                raise ValueError(
+                    f"produits[{i}] doit contenir fournisseur, designation_raw, designation_fr"
+                )
+        return self

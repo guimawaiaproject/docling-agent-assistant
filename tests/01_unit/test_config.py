@@ -1,5 +1,4 @@
 """Tests pour Config (backend/core/config.py) — zéro mock."""
-import pytest
 from backend.core.config import Config
 
 

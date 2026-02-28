@@ -8,10 +8,10 @@ from faker import Faker
 from pydantic import ValidationError
 
 from backend.schemas.invoice import (
-    Product,
-    InvoiceExtractionResult,
-    BatchSaveRequest,
     FAMILLES_VALIDES,
+    BatchSaveRequest,
+    InvoiceExtractionResult,
+    Product,
 )
 
 fake = Faker("fr_FR")

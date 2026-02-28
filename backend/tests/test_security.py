@@ -2,7 +2,6 @@
 Tests de sécurité — _safe_float, _escape_like, isolation utilisateur.
 """
 
-import os
 import uuid
 
 import pytest

@@ -9,6 +9,7 @@ venv/
 # Environment
 .env
 .env.local
+.env.*
 !.env.example
 
 # Database
@@ -35,8 +36,12 @@ docling-pwa/node_modules/
 build/
 dist/
 coverage/
+htmlcov/
+.vite/
 *.log
 .pytest_cache/
+*.orig
+*.bak
 
 # Streamlit
 .streamlit/secrets.toml

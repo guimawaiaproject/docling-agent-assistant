@@ -4,8 +4,6 @@ Tests API — extraction factures (process, status).
 
 import time
 
-import httpx
-
 
 def test_process_returns_202_and_job_id(authenticated_client):
     """Upload minimal PDF → 202 + job_id."""

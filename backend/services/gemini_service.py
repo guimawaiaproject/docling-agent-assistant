@@ -11,7 +11,6 @@ import asyncio
 import json
 import logging
 import re
-from typing import Optional
 
 from google import genai
 from google.genai import types
@@ -89,14 +88,14 @@ RESPONSE_SCHEMA = {
 class GeminiService:
 
     @classmethod
-    def get_or_create(cls, model_id: Optional[str] = None) -> "GeminiService":
+    def get_or_create(cls, model_id: str | None = None) -> "GeminiService":
         """Retourne une instance mise en cache par model_id."""
         key = model_id or Config.DEFAULT_MODEL
         if key not in _gemini_cache:
             _gemini_cache[key] = cls(model_id=key)
         return _gemini_cache[key]
 
-    def __init__(self, model_id: Optional[str] = None):
+    def __init__(self, model_id: str | None = None):
         api_key = Config.GEMINI_API_KEY
         if not api_key:
             raise RuntimeError("GEMINI_API_KEY non configuree")

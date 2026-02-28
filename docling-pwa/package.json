@@ -17,18 +17,22 @@
     "@tanstack/react-virtual": "^3.10.0",
     "@vitejs/plugin-basic-ssl": "^1.2.0",
     "@vitejs/plugin-react": "^5.1.4",
+    "autoprefixer": "^10.4.27",
     "axios": "^1.13.5",
+    "common-tags": "^1.8.2",
     "exceljs": "^4.4.0",
     "framer-motion": "^12.34.3",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.575.0",
+    "postcss": "^8.5.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-dropzone": "^14.3.8",
     "react-router-dom": "^7.13.1",
     "recharts": "^3.7.0",
     "sonner": "^2.0.4",
+    "tailwindcss": "3.4.17",
     "vite": "^5.4.14",
     "vite-plugin-pwa": "^0.21.1",
     "web-vitals": "^4.2.4",
@@ -40,15 +44,17 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@vitest/coverage-v8": "^3.2.4",
-    "autoprefixer": "^10.4.27",
     "axios-mock-adapter": "^2.1.0",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
     "jsdom": "^28.1.0",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.17",
     "vitest": "^3.2.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "tailwindcss": "3.4.17"
+    }
   }
 }

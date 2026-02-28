@@ -1,6 +1,5 @@
 """Tests pour Orchestrator (detect_mime + logique pipeline) — zéro mock."""
-import pytest
-from backend.core.orchestrator import Orchestrator, COST_PER_MILLION
+from backend.core.orchestrator import COST_PER_MILLION, Orchestrator
 
 
 class TestDetectMime:
