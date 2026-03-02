@@ -22,6 +22,17 @@ tests/
 # Migrations bytecode
 migrations/versions/*.pyc
 
-# Frontend build (API image does not need it)
-docling-pwa/dist/
-docling-pwa/node_modules/
+# Frontend (API image does not need it)
+apps/pwa/dist/
+apps/pwa/node_modules/
+
+# Build artifacts, cache, venv
+build/
+coverage/
+.pytest_cache/
+venv/
+.venv/
+.ruff_cache/
+.github/
+docs/
+*.log

@@ -1,27 +1,55 @@
-# Docling Agent v3 — Developer commands
+# Docling Agent v3 — Developer commands (monorepo)
 # Usage: make <target>
 
-.PHONY: install dev test lint docker-up docker-down migrate migrate-down validate-skills skills-to-prompt validate-env health-check validate-all verify-project review
+.PHONY: install dev test lint docker-up docker-down migrate migrate-down validate-skills skills-to-prompt validate-env health-check validate-all verify-project review emmet-analyze design-system spline-analyze docs setup clean audit-deps db-backup release docker-dev
 
-# Install all dependencies (Python + Node)
+# Setup initial (première installation)
+setup:
+	@bash scripts/setup.sh
+
+# Nettoyage (cache, build). clean-full = + node_modules
+clean:
+	@bash scripts/clean.sh
+clean-full:
+	@bash scripts/clean.sh --full
+
+# Audit sécurité dépendances (pip-audit + pnpm audit)
+audit-deps:
+	@bash scripts/audit-deps.sh
+
+# Backup PostgreSQL (DATABASE_URL depuis .env)
+db-backup:
+	python scripts/db_backup.py
+
+# Release (bump version + tag). make release BUMP=patch|minor|major
+release:
+	@bash scripts/release.sh $(or $(BUMP),patch)
+
+# Docker Compose (environnement complet)
+docker-dev:
+	@bash scripts/docker-dev.sh up
+docker-dev-down:
+	@bash scripts/docker-dev.sh down
+docker-dev-logs:
+	@bash scripts/docker-dev.sh logs
+
+# Install all dependencies (deps + dev) — mode dev
 install:
-	python -m venv venv 2>/dev/null || true
-	@if [ -f venv/bin/pip ]; then venv/bin/pip install -r requirements.txt -r requirements-dev.txt; \
-	else venv/Scripts/pip install -r requirements.txt -r requirements-dev.txt; fi
-	cd docling-pwa && npm install
+	cd apps/api && uv sync --all-extras
+	pnpm install
 
 # Start backend + frontend locally (Linux/Mac; use run_local.bat on Windows)
 dev:
-	@bash run_local.sh
+	@bash scripts/run_dev.sh
 
-# Run backend tests
+# Run backend unit tests (sans serveur ni DB)
 test:
-	python -m pytest tests/01_unit -v -k "not test_large_image"
+	cd apps/api && uv run pytest tests -v
 
 # Lint backend and frontend
 lint:
-	python -m ruff check backend api.py 2>/dev/null || true
-	cd docling-pwa && npm run lint
+	cd apps/api && uv run ruff check .
+	cd apps/pwa && pnpm run lint
 
 # Docker Compose: start services
 docker-up:
@@ -33,11 +61,11 @@ docker-down:
 
 # Run Alembic migrations (upgrade to head)
 migrate:
-	python -m alembic upgrade head
+	cd apps/api && uv run alembic upgrade head
 
 # Rollback last Alembic migration
 migrate-down:
-	python -m alembic downgrade -1
+	cd apps/api && uv run alembic downgrade -1
 
 # Validate Agent Skills (SKILL.md format)
 validate-skills:
@@ -73,3 +101,19 @@ review:
 routine:
 	python scripts/health_check.py 2>/dev/null || true
 	@bash scripts/validate_all.sh
+
+# Analyse opportunités Emmet (réduire le code JSX/HTML)
+emmet-analyze:
+	python scripts/analyze_emmet_opportunities.py --output docs/workflow/EMMET-OPPORTUNITIES.md
+
+# Design system Docling (UI/UX Pro Max) — génère design-system/docling/MASTER.md
+design-system:
+	python scripts/design_system_docling.py --persist
+
+# Analyse opportunités Spline 3D — docs/workflow/SPLINE-OPPORTUNITIES.md
+spline-analyze:
+	python scripts/analyze_spline_opportunities.py --output docs/workflow/SPLINE-OPPORTUNITIES.md
+
+# Lancer MkDocs (documentation) — http://localhost:8100 (évite conflit API:8000)
+docs:
+	cd apps/api && uv run mkdocs serve -f ../../mkdocs.yml --no-livereload

@@ -19,8 +19,8 @@
 ## Fix manuel (recommandé)
 
 ```bash
-# 1. Dans un terminal, aller dans docling-pwa
-cd docling-pwa
+# 1. Dans un terminal, aller dans apps/pwa
+cd apps/pwa
 
 # 2. Nettoyer et réinstaller
 rm -rf node_modules package-lock.json   # Linux/Mac

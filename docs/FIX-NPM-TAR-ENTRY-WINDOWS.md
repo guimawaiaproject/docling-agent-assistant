@@ -24,7 +24,7 @@ git config core.longpaths true
 ### 2. Nettoyer et réinstaller
 
 ```powershell
-cd docling-pwa
+cd apps/pwa
 
 # Supprimer l'existant
 Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
@@ -52,7 +52,7 @@ npm run build
 Set-Location (Split-Path -Parent $PSScriptRoot)
 git config core.longpaths true
 
-Set-Location docling-pwa
+Set-Location apps/pwa
 Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
 Remove-Item package-lock.json -ErrorAction SilentlyContinue
 npm cache clean --force
@@ -73,7 +73,7 @@ pnpm évite les erreurs TAR_ENTRY. Avec `node-linker=hoisted`, structure compati
 
 ```powershell
 npm install -g pnpm
-cd docling-pwa
+cd apps/pwa
 # Créer .npmrc avec : node-linker=hoisted
 Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
 pnpm install
@@ -88,7 +88,7 @@ pnpm run build
 Si npm échoue systématiquement sur Windows, utiliser WSL :
 
 ```bash
-cd /mnt/c/Users/guima/Desktop/docling/docling-pwa
+cd /mnt/c/Users/guima/Desktop/docling/apps/pwa
 rm -rf node_modules package-lock.json
 npm install
 VITE_API_URL=http://localhost:8000 VITE_AUTH_REQUIRED=true npm run build
@@ -105,7 +105,7 @@ VITE_API_URL=http://localhost:8000 VITE_AUTH_REQUIRED=true npm run build
 Si le build échoue avec `Cannot find module '...\common-tags\lib'` : le package est incomplet (TAR_ENTRY). Réinstaller :
 
 ```powershell
-cd docling-pwa
+cd apps/pwa
 Remove-Item -Recurse -Force node_modules
 Remove-Item package-lock.json -ErrorAction SilentlyContinue
 npm install

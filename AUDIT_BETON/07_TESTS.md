@@ -1,6 +1,18 @@
 # 🧪 07 — AUDIT TESTS COMPLET
-# pytest · vitest · Couverture · Tests manquants
-# Exécuté le 28 février 2026 — Phase 07 Audit Bêton Docling
+# pytest · vitest · Playwright E2E · Couverture · Tests manquants
+# Exécuté le 1er mars 2026 — Phase 07 Audit Bêton Docling
+# Agent : test-generator
+
+---
+
+## VÉRIFICATIONS (1er mars 2026)
+
+| Critère | Statut |
+|---------|--------|
+| pytest tests/ | À exécuter |
+| vitest run | À exécuter |
+| Tests IDOR (isolation) | ✅ test_isolation, test_security |
+| conftest.py fixtures | ✅ 163 lignes |
 
 ---
 
@@ -8,60 +20,67 @@
 
 ### Backend (pytest)
 
-| Fichier | Lignes | Nb tests | Ce qui est testé | Couverture |
-|---------|--------|----------|------------------|------------|
-| tests/conftest.py | 159 | — | Fixtures (serveur, DB, user, client auth) | — |
-| tests/01_unit/test_auth_service.py | 100 | 12 | Hash Argon2, JWT create/verify, token expiré/modifié | ~95% |
-| tests/01_unit/test_config.py | — | 6 | Config validation, env vars | ~80% |
-| tests/01_unit/test_gemini_service.py | — | 10 | Gemini service (mock ou skip) | variable |
-| tests/01_unit/test_image_preprocessor.py | — | 6 | Préprocessing images | ~70% |
-| tests/01_unit/test_models.py | — | 21 | Schémas Pydantic, Product validation | ~85% |
-| tests/01_unit/test_orchestrator.py | — | 15 | Orchestrator pipeline | variable |
-| tests/01_unit/test_validators.py | — | 12 | Validateurs métier | ~75% |
-| tests/02_integration/test_database.py | — | 2 | Connexion DB réelle | — |
-| tests/02_integration/test_storage.py | — | 2 | StorageService | variable |
-| tests/03_api/test_auth.py | 101 | 7 | Register, login, /me, token invalide | ~90% |
-| tests/03_api/test_catalogue.py | 130 | 8 | Catalogue, batch, fournisseurs, compare | ~75% |
-| tests/03_api/test_health.py | 24 | 2 | /, /health | 100% |
-| tests/03_api/test_invoices.py | 58 | 4 | Process, status, 413, 404 | ~70% |
-| tests/03_api/test_reset_admin.py | — | 3 | Reset admin | — |
-| tests/03_api/test_stats_history.py | — | 4 | Stats, history | — |
-| tests/03_api/test_sync.py | — | 1 | Sync status | — |
-| tests/03_api/test_upload_validation.py | 35 | 3 | 413, 415/422, fichier vide | **NOUVEAU** |
-| tests/03_api/test_batch_save.py | 45 | 2 | Trop de produits, champs manquants | **NOUVEAU** |
-| tests/04_e2e/test_catalogue_browse.py | — | 3 | Parcours catalogue | — |
-| tests/04_e2e/test_scan_flow.py | — | 2 | Flux scan | — |
-| tests/04_e2e/test_settings_sync.py | — | 2 | Settings sync | — |
-| tests/05_security/test_auth_bypass.py | 65 | 3 | Token expiré, modifié, sans token | ~95% |
-| tests/05_security/test_headers.py | — | 1 | Headers sécurité | — |
-| tests/05_security/test_injection.py | — | 2 | Injection SQL/LIKE | — |
-| tests/06_performance/test_response_times.py | — | 2 | Temps réponse | — |
-| tests/07_data_integrity/test_api_db_coherence.py | — | 1 | Cohérence API/DB | — |
-| tests/07_data_integrity/test_constraints.py | — | 1 | Contraintes DB | — |
-| tests/07_data_integrity/test_transactions.py | — | 1 | Transactions | — |
-| tests/08_external_services/test_extraction_reelle.py | — | 1 | Extraction Gemini réelle | skip |
-| backend/tests/test_security.py | 145 | 15 | _safe_float, _escape_like, isolation multi-tenant | ~90% |
+| Fichier | Lignes | Nb tests | Ce qui est testé | Couverture estimée |
+|---------|--------|----------|------------------|--------------------|
+| `tests/conftest.py` | 163 | — | Fixtures | — |
+| `tests/01_unit/test_config.py` | 26 | 6 | Config, models, watchdog | — |
+| `tests/01_unit/test_validators.py` | 12 | 12 | Validateurs | — |
+| `tests/01_unit/test_models.py` | — | 21 | Schémas Pydantic | — |
+| `tests/01_unit/test_auth_service.py` | — | 12 | hash_password, verify_token | — |
+| `tests/01_unit/test_config.py` | — | 6 | Config | — |
+| `tests/01_unit/test_gemini_service.py` | — | 10 | Gemini (mock) | — |
+| `tests/01_unit/test_image_preprocessor.py` | — | 6 | Image preprocessing | — |
+| `tests/01_unit/test_orchestrator.py` | — | 15 | Orchestrateur | — |
+| `tests/02_integration/test_database.py` | — | 2 | DB connexion | — |
+| `tests/02_integration/test_storage.py` | — | 2 | Storage | — |
+| `tests/03_api/test_auth.py` | 120 | 8 | Register, login, /me | — |
+| `tests/03_api/test_health.py` | 24 | 2 | /, /health | — |
+| `tests/03_api/test_catalogue.py` | 126 | 8 | Catalogue, batch, fournisseurs, compare | — |
+| `tests/03_api/test_batch_save.py` | 60 | 3 | Batch validation (500, champs, prix) | — |
+| `tests/03_api/test_upload_validation.py` | 32 | 3 | 413, 415, 422 upload | — |
+| `tests/03_api/test_invoices.py` | — | 4 | Process, status | — |
+| `tests/03_api/test_stats_history.py` | — | 4 | Stats, history | — |
+| `tests/03_api/test_sync.py` | — | 1 | Sync status | — |
+| `tests/03_api/test_reset_admin.py` | — | 3 | Reset admin | — |
+| `tests/04_e2e/test_scan_flow.py` | 60 | 2 | Playwright scan | — |
+| `tests/04_e2e/test_catalogue_browse.py` | — | 3 | E2E catalogue | — |
+| `tests/04_e2e/test_settings_sync.py` | — | 2 | E2E settings | — |
+| `tests/05_security/test_auth_bypass.py` | 65 | 3 | Token expiré, modifié | — |
+| `tests/05_security/test_injection.py` | 88 | 2+2 | SQL, XSS batch | — |
+| `tests/05_security/test_headers.py` | — | 1 | Headers | — |
+| `tests/05_security/test_isolation.py` | **NEW** | 1 | **IDOR multi-tenant** | — |
+| `tests/06_performance/test_response_times.py` | — | 2 | Latence | — |
+| `tests/07_data_integrity/test_transactions.py` | — | 1 | Transactions | — |
+| `tests/07_data_integrity/test_constraints.py` | — | 1 | Contraintes | — |
+| `tests/07_data_integrity/test_api_db_coherence.py` | — | 1 | Cohérence API-DB | — |
+| `tests/08_external_services/test_extraction_reelle.py` | — | 1 | Extraction Gemini | — |
+| **backend/tests/test_security.py** | 144 | 14 | _safe_float, _escape_like, **isolation** | **⚠️ NON EXÉCUTÉ** |
 
-**Total backend : ~120+ tests**
+**Total backend (tests/)** : ~90+ tests
 
-### Frontend (vitest)
+### Frontend (Vitest)
 
-| Fichier | Lignes | Nb tests | Ce qui est testé | Couverture |
-|---------|--------|----------|------------------|------------|
-| src/__tests__/setup.js | 30 | — | localStorage, matchMedia mocks | — |
-| src/__tests__/apiClient.test.js | 101 | 9 | baseURL, timeout, interceptor auth, 401 cleanup | ~85% |
-| src/__tests__/useStore.test.js | 174 | 17 | Model, job, products, batch queue | ~80% |
-| src/__tests__/CompareModal.test.jsx | 225 | 17 | Modal, search, API, accessibilité | ~75% |
-| src/pages/__tests__/CataloguePage.test.jsx | 98 | 2 | CTA scan, navigation | ~60% |
-| src/pages/__tests__/ScanPage.test.jsx | 65 | 2 | Dropzone, texte invitant | **NOUVEAU** |
-| src/utils/__tests__/devisCalculations.test.js | 45 | 3 | Calculs HT, remise, TVA, TTC | **NOUVEAU** |
+| Fichier | Lignes | Nb tests | Ce qui est testé | Couverture estimée |
+|---------|--------|----------|------------------|--------------------|
+| `docling-pwa/src/__tests__/setup.js` | 24 | — | Setup jsdom, localStorage | — |
+| `docling-pwa/src/__tests__/useStore.test.js` | 179 | 18 | Store Zustand | — |
+| `docling-pwa/src/__tests__/apiClient.test.js` | 99 | 9 | apiClient, interceptors | — |
+| `docling-pwa/src/__tests__/CompareModal.test.jsx` | 229 | 17 | CompareModal, accessibilité | — |
+| `docling-pwa/src/pages/__tests__/CataloguePage.test.jsx` | 99 | 2 | CataloguePage, CTA | — |
+| `docling-pwa/src/pages/__tests__/ScanPage.test.jsx` | 99 | 2 | ScanPage, dropzone | — |
+| `docling-pwa/src/utils/__tests__/devisCalculations.test.js` | 49 | 3 | Calculs HT, remise, TVA, TTC | — |
 
-**Total frontend : ~50 tests**
+**Total frontend** : ~51 tests
 
 ### E2E (Playwright)
 
-- Aucun fichier `*.e2e.*` ou `playwright.config.*` trouvé.
-- `tests/04_e2e/` contient des tests API avec serveur réel (pas Playwright).
+| Fichier | Nb tests | Ce qui est testé |
+|---------|----------|------------------|
+| `tests/04_e2e/test_scan_flow.py` | 2 | Scan page, upload, dropzone |
+| `tests/04_e2e/test_catalogue_browse.py` | 3 | Parcours catalogue |
+| `tests/04_e2e/test_settings_sync.py` | 2 | Settings sync |
+
+**Total E2E** : 7 tests (Playwright)
 
 ---
 
@@ -70,267 +89,229 @@
 ### Grille qualité par fichier de test
 
 | Fichier | Indépendants | Assertions précises | Happy+Sad | Edge cases | Mock réaliste | Score /10 |
-|---------|-------------|---------------------|-----------|------------|---------------|-----------|
-| test_auth_service.py | ✅ | ✅ | ✅ | ✅ | N/A (zéro mock) | 9 |
+|---------|-------------|---------------------|----------|-----------|--------------|-----------|
 | test_auth.py | ✅ | ✅ | ✅ | ⚠️ | N/A | 8 |
 | test_catalogue.py | ✅ | ✅ | ✅ | ⚠️ | N/A | 8 |
-| test_invoices.py | ✅ | ✅ | ✅ | ⚠️ | N/A | 7 |
-| test_invoices.py (sleep) | ⚠️ | — | — | — | — | -1 (sleep 1s) |
-| test_security.py (backend) | ✅ | ✅ | ✅ | ✅ | N/A | 9 |
-| test_auth_bypass.py | ✅ | ✅ | ✅ | ✅ | N/A | 9 |
-| apiClient.test.js | ✅ | ✅ | ✅ | ✅ | axios-mock-adapter | 9 |
+| test_batch_save.py | ✅ | ✅ | ✅ | ✅ | N/A | 9 |
+| test_upload_validation.py | ✅ | ✅ | ✅ | ⚠️ | N/A | 8 |
+| test_auth_bypass.py | ⚠️ | ✅ | ✅ | — | N/A | 7 |
+| test_injection.py | ✅ | ✅ | ✅ | ✅ | N/A | 9 |
+| test_isolation.py | ✅ | ✅ | ✅ | — | N/A | 9 |
 | useStore.test.js | ✅ | ✅ | ✅ | ✅ | N/A | 9 |
-| CompareModal.test.jsx | ✅ | ✅ | ✅ | ✅ | vi.mock | 8 |
-| CataloguePage.test.jsx | ✅ | ✅ | ⚠️ | ⚠️ | vi.mock | 7 |
+| CataloguePage.test.jsx | ✅ | ✅ | ✅ | ⚠️ | ✅ | 8 |
+| ScanPage.test.jsx | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | 7 |
+| CompareModal.test.jsx | ✅ | ✅ | ✅ | ✅ | ✅ | 9 |
+| apiClient.test.js | ✅ | ✅ | ✅ | ✅ | ✅ | 9 |
+| devisCalculations.test.js | ✅ | ✅ | ✅ | ✅ | N/A | 9 |
 
-### Points d’attention
-
-- **test_status_polling_until_complete** : utilise `time.sleep(1)` — test lent et fragile. Recommandation : remplacer par polling avec timeout court ou mock du job.
-- **tests/ + backend/tests/** : conflit de plugins pytest (conftest dupliqué). CI exécute `pytest tests/ backend/tests/` — à valider sur Linux.
-- **setup.js** : utilise `vi` sans import — OK car `globals: true` dans vitest.
+**Points d'attention** :
+- `test_auth_bypass.py` : `importlib.reload` modifie l'environnement global → risque d'isolation
+- `test_scan_flow.py` : `page.wait_for_timeout(2000)` → sleep fragile, préférer `wait_for_selector`
+- Pas de `sleep()` dans tests unitaires ✅
 
 ---
 
 ## T3 — COUVERTURE ACTUELLE
 
-### Backend
+### Configuration
 
-- **CI** : `pytest tests/ backend/tests/ --cov=backend --cov-fail-under=65`
-- **Objectif** : 75% (audit) vs 65% (CI actuel)
-- **Estimation** : ~65–70% sur `backend/` (sans serveur lancé, collect échoue sur Windows)
+- **Backend** : `pyproject.toml` → `testpaths = ["tests"]`, pas de `--cov-fail-under` défini
+- **Frontend** : `vite.config.js` → `test: { environment: 'jsdom', setupFiles }`, pas de `coverage` configuré par défaut
+- **Fichier `.coveragerc`** : absent
 
-### Frontend
-
-- **CI** : `npx vitest run --coverage --coverage.thresholds.lines=60`
-- **Objectif** : 70% lignes
-- **Estimation** : ~55–65% (peu de pages couvertes : CataloguePage, ScanPage, CompareModal)
-
-### Tableau couverture
+### Tableau couverture (estimée sans exécution)
 
 | Module/Page | Couverture actuelle | Objectif | Gap | Priorité |
-|-------------|---------------------|----------|-----|----------|
-| api.py | ~60% | 80% | ~20% | P0 |
-| auth_service.py | ~95% | 90% | ✅ | — |
-| db_manager.py | ~70% | 75% | ~5% | P1 |
-| ScanPage.jsx | ~40% | 70% | ~30% | P1 |
-| ValidationPage.jsx | 0% | 70% | 70% | P1 |
-| DevisPage.jsx | 0% | 70% | 70% | P2 |
-| devisGenerator.js | ~30% | 70% | ~40% | P1 |
+|-------------|--------------------|---------|-----|----------|
+| api.py | ~40% | 80% | ~40% | P0 |
+| auth_service.py | ~70% | 90% | ~20% | P0 |
+| db_manager.py | ~50% | 75% | ~25% | P1 |
+| gemini_service.py | ~30% | 70% | ~40% | P1 |
+| ScanPage.jsx | ~20% | 70% | ~50% | P1 |
+| CataloguePage.jsx | ~30% | 70% | ~40% | P1 |
+| DevisPage.jsx | ~20% | 70% | ~50% | P1 |
+| useStore.js | ~80% | 90% | ~10% | P1 |
+| devisCalculations | ~60% | 80% | ~20% | P1 |
+
+**Note** : La couverture réelle nécessite `pytest --cov` et `vitest run --coverage` avec serveur et DB lancés.
 
 ---
 
 ## T4 — TESTS MANQUANTS CRITIQUES
 
-### T4-B — Tests backend manquants
+### T4-B — Tests backend manquants (identifiés et ÉCRITS)
 
-| ID | Priorité | Description | Fichier créé |
-|----|----------|-------------|--------------|
-| T-001 | P0 | Upload trop grand → 413 | test_upload_validation.py ✅ |
-| T-002 | P0 | Upload mauvais MIME → 415/422 | test_upload_validation.py ✅ |
-| T-003 | P0 | Upload fichier vide → 422 | test_upload_validation.py ✅ |
-| T-004 | P0 | BatchSave trop de produits → 422 | test_batch_save.py ✅ |
-| T-005 | P1 | BatchSave champs manquants → 422 | test_batch_save.py ✅ |
-| T-006 | P0 | Isolation multi-tenant (user A ≠ user B) | test_security.py ✅ (existant) |
-| T-007 | P0 | Token expiré → 401 | test_auth_bypass.py ✅ (existant) |
-| T-008 | P0 | Token invalide → 401 | test_auth.py ✅ (existant) |
+| Test | Priorité | Fichier | Statut |
+|------|----------|---------|--------|
+| `test_user_isolation_job_invisible_to_other_user` | **P0** | `tests/05_security/test_isolation.py` | ✅ **ÉCRIT** |
+| `test_login_nonexistent_email_401` | **P0** | `tests/03_api/test_auth.py` | ✅ **ÉCRIT** |
+| `test_batch_save_negative_price_422` | **P1** | `tests/03_api/test_batch_save.py` | ✅ **ÉCRIT** |
 
-### T4-F — Tests frontend manquants
+### T4-F — Tests frontend manquants (recommandés)
 
-| ID | Priorité | Description | Fichier créé |
-|----|----------|-------------|--------------|
-| T-009 | P1 | ScanPage : dropzone visible | ScanPage.test.jsx ✅ |
-| T-010 | P1 | ScanPage : texte invitant | ScanPage.test.jsx ✅ |
-| T-011 | P1 | Calculs devis (HT, remise, TVA, TTC) | devisCalculations.test.js ✅ |
-| T-012 | P2 | ValidationPage : affichage produits | — |
-| T-013 | P2 | DevisPage : génération PDF | — |
+| Test | Priorité | Fichier | Statut |
+|------|----------|---------|--------|
+| ScanPage : rejet fichiers non-PDF | P1 | ScanPage.test.jsx | À faire |
+| ScanPage : confirmation avant clearQueue | P1 | ScanPage.test.jsx | À faire |
+| DevisPage : calculs TTC | P1 | DevisPage.test.jsx | À faire |
+| ValidationPage : affichage produits | P2 | ValidationPage.test.jsx | À faire |
+| SettingsPage : sauvegarde TVA | P2 | SettingsPage.test.jsx | À faire |
+
+### T4-E2E — Tests E2E manquants (recommandés)
+
+| Test | Priorité | Statut |
+|------|----------|--------|
+| Flux complet : Inscription → Login → Scan → Validation → Catalogue | P2 | À faire |
+| Cmd+K ouvre command palette | P2 | À faire |
+| Catalogue mobile : vue cartes | P2 | À faire |
+| Settings : sauvegarde TVA utilisée dans devis | P2 | À faire |
 
 ---
 
-## T5 — TESTS ÉCRITS (CODE COMPLET)
+## T5 — CONFLITS CONFTEST (tests/ vs backend/tests/)
 
-### Backend — test_upload_validation.py
+### Conflit identifié
 
-```python
-"""
-Tests API — validation upload (taille, MIME, fichier vide).
-"""
+| Emplacement | Rôle | Conflit |
+|-------------|------|---------|
+| `tests/conftest.py` | Fixtures globales (serveur, DB, auth, sample_products) | **Principal** — utilisé par pytest |
+| `backend/tests/conftest.py` | Charge `tests.conftest` via `pytest_plugins` | **Délégation** |
+| `tests/04_e2e/conftest.py` | Fixtures Playwright (browser, page) | **Spécifique E2E** |
 
-def test_upload_too_large_returns_413(authenticated_client):
-    """Upload d'un fichier trop grand (> 50 Mo) → 413 Request Entity Too Large."""
-    client, _ = authenticated_client
-    big_content = b"x" * (51 * 1024 * 1024)
-    files = {"file": ("large.pdf", big_content, "application/pdf")}
-    data = {"model": "gemini-3-flash-preview", "source": "pc"}
-    resp = client.post("/api/v1/invoices/process", files=files, data=data)
-    assert resp.status_code == 413
+### Problème critique
 
-def test_upload_wrong_mime_type(authenticated_client):
-    """Upload d'un fichier avec mauvais type MIME → 415 ou 422."""
-    client, _ = authenticated_client
-    files = {"file": ("script.exe", b"MZ\x00\x00", "application/octet-stream")}
-    data = {"model": "gemini-3-flash-preview", "source": "pc"}
-    resp = client.post("/api/v1/invoices/process", files=files, data=data)
-    assert resp.status_code in (415, 422, 400)
+**`backend/tests/` n'est PAS dans `testpaths`** (`pyproject.toml` : `testpaths = ["tests"]`).
 
-def test_upload_empty_file(authenticated_client):
-    """Upload d'un fichier vide → 422 ou 400."""
-    client, _ = authenticated_client
-    files = {"file": ("empty.pdf", b"", "application/pdf")}
-    data = {"model": "gemini-3-flash-preview", "source": "pc"}
-    resp = client.post("/api/v1/invoices/process", files=files, data=data)
-    assert resp.status_code in (422, 400)
+- `backend/tests/test_security.py` contient : `_safe_float`, `_escape_like`, **test_user_isolation_job_invisible_to_other_user**
+- Ces tests **ne sont jamais exécutés** par `pytest tests/` !
+
+### Solution appliquée
+
+**Création de `tests/05_security/test_isolation.py`** — copie du test d'isolation IDOR dans le répertoire principal `tests/` pour qu'il soit exécuté.
+
+**Recommandation** : Fusionner ou supprimer `backend/tests/` et consolider tout dans `tests/` pour éviter la confusion.
+
+---
+
+## T6 — FIXTURES, MARKERS, SLOW TESTS
+
+### Fixtures disponibles (conftest.py)
+
+| Fixture | Scope | Description |
+|---------|-------|-------------|
+| `ensure_server_running` | session | Vérifie que serveur est lancé sur TEST_BASE_URL |
+| `real_db_connection` | function | Connexion psycopg2 réelle |
+| `unique_user` | function | Utilisateur Faker unique |
+| `authenticated_client` | function | Client httpx + token |
+| `http_client` | function | Client httpx sans auth |
+| `sample_products` | function | 3 produits Faker |
+
+### Markers (pyproject.toml)
+
+| Marker | Usage |
+|--------|-------|
+| `@pytest.mark.slow` | Tests > 5 secondes |
+| `@pytest.mark.security` | Tests de sécurité |
+| `@pytest.mark.e2e` | Tests end-to-end Playwright |
+| `@pytest.mark.performance` | Tests de performance |
+| `@pytest.mark.external` | Tests avec services externes (Gemini, Storj) |
+
+### Exécution sélective
+
+```bash
+# Exclure tests lents
+pytest tests/ -v -m "not slow"
+
+# Exclure E2E
+pytest tests/ -v -m "not e2e"
+
+# Uniquement sécurité
+pytest tests/ -v -m security
+
+# Uniquement unitaires (sans serveur)
+pytest tests/01_unit -v
 ```
 
-### Backend — test_batch_save.py
+### Tests lents identifiés
 
-```python
-"""
-Tests API — validation batch save (limite produits, champs requis).
-"""
-
-def test_batch_save_too_many_products_422(authenticated_client):
-    """BatchSave avec trop de produits (> 500) → 422 avec message clair."""
-    client, _ = authenticated_client
-    products = [
-        {"fournisseur": f"Fournisseur_{i}", "designation_raw": f"Prod {i}", "designation_fr": f"Produit {i}"}
-        for i in range(501)
-    ]
-    resp = client.post("/api/v1/catalogue/batch", json={"produits": products, "source": "pc"})
-    assert resp.status_code == 422
-
-def test_batch_save_missing_required_fields_422(authenticated_client):
-    """BatchSave avec champs requis manquants → 422."""
-    client, _ = authenticated_client
-    products = [{"fournisseur": "TestFournisseur", "designation_raw": "CIMENT 42.5R"}]
-    resp = client.post("/api/v1/catalogue/batch", json={"produits": products, "source": "pc"})
-    assert resp.status_code == 422
-```
-
-### Frontend — ScanPage.test.jsx
-
-Voir fichier `docling-pwa/src/pages/__tests__/ScanPage.test.jsx` (créé).
-
-### Frontend — devisCalculations.test.js
-
-Voir fichier `docling-pwa/src/utils/__tests__/devisCalculations.test.js` (créé).
-
----
-
-## T6 — CONFIGURATION DES TESTS
-
-### Backend (pyproject.toml)
-
-- ✅ `testpaths = ["tests"]`
-- ✅ `asyncio_mode = "auto"`
-- ✅ `timeout = 30`
-- ✅ Markers : slow, security, e2e, performance, external
-- ⚠️ Pas de `.coveragerc` — couverture via `--cov=backend`
-- ⚠️ `--cov-fail-under=75` non défini dans pyproject (CI utilise 65)
-
-### Frontend (vite.config.js)
-
-- ✅ `environment: 'jsdom'`
-- ✅ `setupFiles: ['./src/__tests__/setup.js']`
-- ✅ `include: ['src/__tests__/**/*.{test,spec}.{js,jsx}', 'src/**/__tests__/**/*.{test,spec}.{js,jsx}']`
-- ⚠️ Pas de `coverage` dans config test — CI passe `--coverage` en CLI
-- ✅ `globals: true` (vi, describe, expect disponibles)
-
----
-
-## T7 — CI/CD TESTS
-
-### .github/workflows/ci.yml
-
-- ✅ Tests backend sur chaque PR (pytest + serveur)
-- ✅ Tests frontend (vitest --coverage)
-- ✅ Couverture backend : `--cov-fail-under=65`
-- ✅ Couverture frontend : `--coverage.thresholds.lines=60`
-- ✅ PostgreSQL service container
-- ✅ Cache pip / npm
-- ⚠️ tests.yml : exécute `pytest tests/` sans backend/tests, sans coverage
-
-### Recommandations
-
-1. Harmoniser workflows (ci.yml vs tests.yml)
-2. Ajouter `pytest-cov` dans `requirements-dev.txt`
-3. Monter le seuil backend à 75% progressivement
+- `tests/04_e2e/*` : Playwright (réseau, navigateur)
+- `tests/08_external_services/test_extraction_reelle.py` : Appel Gemini réel
+- `tests/03_api/test_upload_validation.py` : `test_upload_too_large_returns_413` (51 Mo)
 
 ---
 
 ## SCORECARD TESTS
 
 | Domaine | Score /100 | Couverture | Tests existants | Tests manquants | Priorité |
-|---------|------------|------------|-----------------|-----------------|----------|
-| Auth/Sécurité backend | 85 | ~90% | 22 | 0 | P0 ✅ |
-| Endpoints API | 75 | ~65% | 45 | 5 écrits | P0 |
-| Isolation multi-tenant | 90 | ~90% | 1 | 0 | P0 ✅ |
-| Validation inputs | 70 | ~60% | 8 | 0 | P1 |
-| Store Zustand | 90 | ~80% | 17 | 0 | P1 ✅ |
-| Pages React | 60 | ~50% | 4 | 2 écrits | P1 |
-| Calculs métier (devis) | 75 | ~40% | 3 | 0 | P1 |
-| E2E flows | 30 | — | 0 Playwright | 0 | P2 |
-| **GLOBAL** | **72** | **~65%** | **~170** | **7 écrits** | — |
-
----
-
-## LISTE [T-001] À [T-013]
-
-| ID | Statut | Description |
-|----|--------|-------------|
-| [T-001] | ✅ Écrit | Upload trop grand → 413 |
-| [T-002] | ✅ Écrit | Upload mauvais MIME → 415/422 |
-| [T-003] | ✅ Écrit | Upload fichier vide → 422 |
-| [T-004] | ✅ Écrit | BatchSave trop de produits → 422 |
-| [T-005] | ✅ Écrit | BatchSave champs manquants → 422 |
-| [T-006] | ✅ Existant | Isolation multi-tenant |
-| [T-007] | ✅ Existant | Token expiré → 401 |
-| [T-008] | ✅ Existant | Token invalide → 401 |
-| [T-009] | ✅ Écrit | ScanPage dropzone visible |
-| [T-010] | ✅ Écrit | ScanPage texte invitant |
-| [T-011] | ✅ Écrit | Calculs devis HT/TVA/TTC |
-| [T-012] | ⏳ À faire | ValidationPage affichage |
-| [T-013] | ⏳ À faire | DevisPage génération PDF |
+|---------|-----------|-----------|-----------------|-----------------|----------|
+| Auth/Sécurité backend | 75 | ~60% | 11 | 4 | P0 |
+| Endpoints API | 80 | ~55% | 35 | 5 | P0 |
+| Isolation multi-tenant | 85 | — | 1 | 0 | P0 ✅ |
+| Validation inputs | 80 | — | 6 | 1 | P1 |
+| Store Zustand | 90 | ~80% | 18 | 2 | P1 |
+| Pages React | 65 | ~40% | 4 | 4 | P1 |
+| Calculs métier (devis) | 85 | ~60% | 3 | 1 | P1 |
+| E2E flows | 60 | — | 7 | 4 | P2 |
+| **GLOBAL** | **/100** | **~50%** | **~90+51** | **~20** | — |
 
 ---
 
 ## ✅ GATE T — TESTS
 
-### Critères
+### Critères de passage
 
-- pytest : 0 FAILED, couverture ≥ 65% (CI) / 75% (objectif audit)
-- vitest : 0 FAIL
-- Tests d’isolation multi-tenant présents ✅
-- Tests auth (login invalid, token expiré) présents ✅
+| Critère | Attendu | Statut |
+|---------|---------|--------|
+| pytest : 0 fail | `pytest tests/01_unit -v` | ⚠️ À exécuter (serveur requis pour 03_api+) |
+| Couverture backend ≥ 75% | `pytest tests/ --cov=. --cov-fail-under=75` | ❌ Non configuré |
+| vitest : 0 fail | `cd docling-pwa && npx vitest run` | ⚠️ À exécuter |
+| Tests isolation multi-tenant | `test_user_isolation_job_invisible_to_other_user` | ✅ **PRÉSENT** |
+| Tests auth (login invalid, token expiré) | `test_login_wrong_password_401`, `test_expired_token_rejected` | ✅ **PRÉSENTS** |
 
-### Exécution
+### Commandes de validation
 
 ```bash
-# Backend (serveur requis)
-pytest tests/ backend/tests/ -v --tb=short --cov=backend --cov-fail-under=65
+# 1. Backend (unitaires uniquement, sans serveur)
+pytest tests/01_unit -v --tb=short
 
-# Frontend
-cd docling-pwa && npx vitest run --coverage
+# 2. Backend (complet, serveur + DB requis)
+pytest tests/ -v --tb=short -m "not e2e and not external"
+
+# 3. Frontend
+cd docling-pwa && npx vitest run --reporter=dot
+
+# 4. Vérifier présence test isolation
+grep -r "test_user_isolation\|test_isolation" tests/
 ```
 
-### Statut
+### STATUS GATE
 
-- **pytest** : Conflit conftest (tests/ + backend/tests/) sur chargement — à vérifier avec serveur lancé.
-- **vitest** : Tests frontend exécutables localement.
-- **Tests critiques** : Auth, isolation, upload, batch — présents ou ajoutés.
+| Élément | PASS | FAIL |
+|---------|------|------|
+| Tests unitaires backend exécutables | | ⚠️ |
+| Tests frontend exécutables | | ⚠️ |
+| Tests isolation multi-tenant présents | ✅ | |
+| Tests auth critiques présents | ✅ | |
+| Tests manquants P0 écrits | ✅ | |
+| Couverture ≥ 75% configurée | | ❌ |
+
+**STATUS : [ ] PASS  [ ] FAIL  [ ] PARTIEL**
+
+**Recommandé** : Exécuter `make validate-all` avec serveur et DB lancés pour valider le PASS complet.
 
 ---
 
-## STATUS : GATE T — PASS
+## RÉSUMÉ DES ACTIONS EFFECTUÉES
 
-**PASS** car :
-- Tests d’isolation multi-tenant présents (backend/tests/test_security.py)
-- Tests auth (login invalid, token expiré) présents
-- 5 nouveaux tests backend écrits (upload, batch)
-- 5 nouveaux tests frontend écrits (ScanPage, devis)
-- CI configure pytest + vitest avec couverture
+1. **Tests créés** :
+   - `tests/05_security/test_isolation.py` : test IDOR multi-tenant (user A ne voit pas le job de user B)
+   - `tests/03_api/test_auth.py` : `test_login_nonexistent_email_401`
+   - `tests/03_api/test_batch_save.py` : `test_batch_save_negative_price_422`
 
-**Recommandations avant production :**
-1. Résoudre le conflit pytest tests/ + backend/tests/ (conftest)
-2. Remplacer `time.sleep(1)` dans test_status_polling_until_complete
-3. Ajouter tests ValidationPage et DevisPage (P2)
-4. Introduire Playwright pour E2E (P2)
+2. **Conflit conftest résolu** : `backend/tests/` non exécuté → test isolé déplacé dans `tests/05_security/`
+
+3. **Prochaines étapes recommandées** :
+   - Ajouter `backend/tests` à `testpaths` ou fusionner dans `tests/`
+   - Configurer `.coveragerc` et `--cov-fail-under=75` dans CI
+   - Ajouter workflow CI qui lance les tests sur chaque PR
+   - Compléter tests ScanPage (rejet PDF, confirmation clearQueue)

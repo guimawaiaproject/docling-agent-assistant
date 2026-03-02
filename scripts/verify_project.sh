@@ -34,22 +34,16 @@ export VITE_API_URL="http://localhost:8000"
 export VITE_AUTH_REQUIRED="true"
 
 echo "=== BACKEND ==="
-run_step "B1" "python -c 'import api; print(\"OK\")'" || true
-run_step "B2" "ruff check api.py backend/ scripts/ tests/ migrations/" || true
-run_step "B3" "python -m pytest tests/01_unit -v --tb=short -q -x" || true
+run_step "B1" "cd apps/api && uv run python -c 'import main; print(\"OK\")'" || true
+run_step "B2" "cd apps/api && uv run ruff check . ../../scripts" || true
+run_step "B3" "cd apps/api && uv run pytest tests -v --tb=short -q -x" || true
 
 echo ""
 echo "=== FRONTEND ==="
-cd docling-pwa
-if [[ -f pnpm-lock.yaml ]]; then
-    run_step "F1" "pnpm run lint" "optional" || true
-    run_step "F2" "pnpm run build" || true
-    run_step "F3" "pnpm exec vitest run --reporter=dot" || true
-else
-    run_step "F1" "npm run lint" "optional" || true
-    run_step "F2" "npm run build" || true
-    run_step "F3" "npx vitest run --reporter=dot" || true
-fi
+cd apps/pwa
+run_step "F1" "pnpm run lint" "optional" || true
+run_step "F2" "pnpm run build" || true
+run_step "F3" "pnpm run test" || true
 cd ..
 
 echo ""

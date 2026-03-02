@@ -6,7 +6,7 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "=== Ruff ==="
-ruff check api.py backend/ scripts/ tests/ migrations/
+(cd apps/api && uv run ruff check . ../../scripts)
 
 echo "=== Gito (si configuré) ==="
 if command -v gito &>/dev/null; then

@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
-# Validation complète — à lancer après toute modification
+# Validation complète — à lancer après toute modification (monorepo)
 # Usage: ./scripts/validate_all.sh
 
 set -e
 cd "$(dirname "$0")/.."
 
-echo "=== 1. Lint backend ==="
-ruff check api.py backend/ scripts/ tests/ migrations/
+echo "=== 1. Lint backend (ruff) ==="
+(cd apps/api && uv run ruff check . ../../scripts)
 
 echo "=== 2. Lint frontend ==="
-(cd docling-pwa && npm run lint)
+(cd apps/pwa && pnpm run lint)
 
-echo "=== 2b. Build frontend (PostCSS/Tailwind) ==="
-(cd docling-pwa && VITE_API_URL=http://localhost:8000 npx vite build)
+echo "=== 3. Build frontend (PostCSS/Tailwind) ==="
+(cd apps/pwa && pnpm run build)
 
-echo "=== 3. Validate skills ==="
+echo "=== 4. Validate skills ==="
 python scripts/validate_skills.py
 
-echo "=== 4. Tests backend ==="
-pytest tests/01_unit -v --tb=short -q
+echo "=== 5. Tests backend ==="
+(cd apps/api && uv run pytest tests -v)
 
-echo "=== 5. Tests frontend ==="
-(cd docling-pwa && npx vitest run --reporter=dot)
+echo "=== 6. Tests frontend ==="
+(cd apps/pwa && pnpm run test)
 
 echo "=== Validation OK ==="

@@ -10,7 +10,7 @@ Application d'extraction automatisée de factures fournisseurs pour le secteur B
 |------|----------------|
 | **Nouveau dev / IA** | [DEVELOPER-ONBOARDING.md](DEVELOPER-ONBOARDING.md) |
 | **Profil projet (IA)** | [PROJECT-PROFILE.md](PROJECT-PROFILE.md) |
-| **Contribution** | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| **Contribution** | [guides/contributing.md](guides/contributing.md) |
 | **Plan finalisation** | [workflow/1_planning/PLAN-COMPLET-FINALISATION/README.md](workflow/1_planning/PLAN-COMPLET-FINALISATION/README.md) |
 | **Architecture** | [architecture/README.md](architecture/README.md) |
 | **Glossaire** | [GLOSSARY.md](GLOSSARY.md) |
@@ -47,7 +47,7 @@ Application d'extraction automatisée de factures fournisseurs pour le secteur B
 | **[ai-library/README.md](ai-library/README.md)** | Bibliothèque IA complète (éditeurs, agents, tests, doc, MCP) |
 | **[DEVELOPER-ONBOARDING.md](DEVELOPER-ONBOARDING.md)** | Guide onboarding (30 min) |
 | **[PROJECT-PROFILE.md](PROJECT-PROFILE.md)** | Profil projet IA-friendly |
-| **[CONTRIBUTING.md](CONTRIBUTING.md)** | Workflow contribution |
+| **[guides/contributing.md](guides/contributing.md)** | Workflow contribution |
 | **[GLOSSARY.md](GLOSSARY.md)** | Glossaire BTP, technique, IA |
 | **[architecture/README.md](architecture/README.md)** | ADR, décisions architecturales |
 | **[workflow/1_planning/PLAN-COMPLET-FINALISATION/README.md](workflow/1_planning/PLAN-COMPLET-FINALISATION/README.md)** | **Plan complet finalisation** — étapes, anti-régression |

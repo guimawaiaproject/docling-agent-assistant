@@ -10,8 +10,9 @@ import sys
 import urllib.request
 from pathlib import Path
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# Add apps/api to path for imports
+_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_root / "apps" / "api"))
 
 
 def check_api(url: str = "http://localhost:8000") -> tuple[bool, str]:
@@ -31,9 +32,10 @@ def check_api(url: str = "http://localhost:8000") -> tuple[bool, str]:
 def check_db() -> tuple[bool, str]:
     """Vérifie la connexion PostgreSQL via l'API (si disponible) ou asyncpg."""
     try:
-        import asyncpg
+        import asyncio
 
-        from backend.core.config import Config
+        import asyncpg
+        from core.config import Config
 
         async def _check():
             conn = await asyncpg.connect(Config.DATABASE_URL)
@@ -43,7 +45,6 @@ def check_db() -> tuple[bool, str]:
             finally:
                 await conn.close()
 
-        import asyncio
         asyncio.run(_check())
         return True, "Database OK"
     except ImportError as e:

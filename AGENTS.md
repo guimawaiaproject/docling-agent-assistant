@@ -11,6 +11,7 @@ Ce projet utilise le format [Agent Skills](https://agentskills.io/specification)
 | **neon-postgres** | `.agents/skills/neon-postgres/` | Questions Neon, PostgreSQL serverless, asyncpg, migrations |
 | **docling-factures** | `.agents/skills/docling-factures/` | Extraction factures, API, catalogue BTP, pipeline Gemini |
 | **multi-agent-workflow** | `.agents/skills/multi-agent-workflow/` | Coordination agents, quality gates, routine DevOps |
+| **ui-ux-pro-max** | `.cursor/skills/ui-ux-pro-max/` | Design system, UI/UX, 67 styles, palettes, typo — [docs](docs/UI-UX-PRO-MAX-USAGE.md) |
 
 ## Règles Cursor
 
@@ -31,6 +32,7 @@ Ce projet utilise le format [Agent Skills](https://agentskills.io/specification)
 | **dev-access-free** | `.cursor/rules/dev-access-free.mdc` | **Accès dev sans login — maintenir config, ne jamais supprimer LoginPage** |
 | **agent-executes** | `.cursor/rules/agent-executes.mdc` | **L'agent exécute — ne pas déléguer à l'utilisateur** |
 | **sonarqube-audit** | `.cursor/rules/sonarqube-audit.mdc` | SonarQube MCP — analyse qualité/sécurité (si configuré) |
+| **emmet** | `.cursor/rules/emmet.mdc` | Abréviations HTML/CSS/JSX — [docs.emmet.io](https://docs.emmet.io/) |
 
 ## Agents Cursor
 
@@ -44,6 +46,8 @@ Ce projet utilise le format [Agent Skills](https://agentskills.io/specification)
 | **Security Reviewer** | `.cursor/agents/security-reviewer.md` | Revue sécurité |
 | **Context Specialist** | `.cursor/agents/context-specialist.md` | Analyse codebase |
 | **Docs Writer** | `.cursor/agents/docs-writer.md` | Mise à jour documentation |
+| **Visual Design Expert** | `.cursor/agents/visual-design-expert.md` | Refonte visuelle, tendances 2026 |
+| **Spline Expert** | `.cursor/agents/spline-expert.md` | Intégration 3D Spline, scènes interactives, React, Web |
 
 ## Commands
 
@@ -62,6 +66,8 @@ Ce projet utilise le format [Agent Skills](https://agentskills.io/specification)
 | **routine** | `.cursor/commands/routine.md` | make routine (health-check + validate-all) |
 | **audit-integral** | `.cursor/commands/audit-integral.md` | Audit complet projet (Expert Dev, 8 phases) |
 | **audit-beton** | `.cursor/commands/audit-beton.md` | Audit Bêton v3 — 10 phases avec agents spécialisés |
+| **redesign** | `.cursor/commands/redesign.md` | Moderniser visuel (Visual Design Expert, tendances 2026) |
+| **spline** | `.cursor/commands/spline.md` | Analyser + intégrer Spline 3D (Spline Expert, chef domaine) |
 
 ## Flux multi-agents (générique)
 
@@ -70,11 +76,21 @@ Workflow applicable à tout projet. Voir [.cursor/WORKFLOW.md](.cursor/WORKFLOW.
 ## Validation et outils
 
 ```bash
-make validate-skills    # Valider le format SKILL.md
+make setup             # Setup initial (première installation)
+make clean            # Nettoyage cache/build (clean-full = + node_modules)
+make audit-deps       # Audit sécurité (pip-audit + pnpm audit)
+make db-backup        # Backup PostgreSQL (backups/)
+make release BUMP=patch   # Release (patch|minor|major)
+make docker-dev       # Docker Compose up
+make validate-skills  # Valider le format SKILL.md
 make skills-to-prompt   # Générer <available_skills> XML
 make validate-env      # Valider variables .env
 make health-check      # Health API + DB
 make verify-project    # Vérification complète (Audit Bêton, déploiement)
+make emmet-analyze     # Opportunités Emmet — docs/workflow/EMMET-OPPORTUNITIES.md
+make design-system     # Design system Docling (UI/UX Pro Max) — design-system/docling/MASTER.md
+make spline-analyze    # Opportunités Spline 3D — docs/workflow/SPLINE-OPPORTUNITIES.md
+# Commande @spline — lance le workflow Spline Expert (analyse + intégration)
 ```
 
 **verify-project** : aligné sur `AUDIT_BETON/10_RAPPORT_FINAL.md`. Vérifie render.yaml, deploy.yml, pip-audit.

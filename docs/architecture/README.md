@@ -14,7 +14,7 @@ Décisions architecturales et références techniques.
 
 ## Références
 
-- [01-ARCHITECTURE.md](../01-ARCHITECTURE.md) — Architecture détaillée
+- [overview.md](overview.md) — Architecture détaillée
 - [.agents/skills/docling-factures/references/architecture.md](../../.agents/skills/docling-factures/references/architecture.md) — Référence skill
 
 ---

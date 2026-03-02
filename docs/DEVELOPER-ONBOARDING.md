@@ -94,5 +94,5 @@ Si échec : corriger avant de continuer. Voir [development-workflow](.cursor/rul
 ## Références
 
 - [docs/README.md](README.md) — Index complet
-- [docs/CONTRIBUTING.md](CONTRIBUTING.md) — Workflow contribution
+- [docs/guides/contributing.md](guides/contributing.md) — Workflow contribution
 - [docs/PROJECT-PROFILE.md](PROJECT-PROFILE.md) — Profil projet IA

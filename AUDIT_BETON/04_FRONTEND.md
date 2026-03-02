@@ -1,675 +1,556 @@
-# ⚛️ 04 — AUDIT FRONTEND COMPLET
-# React · Vite · Tailwind · Zustand · PWA
-# Exécuté le 28 février 2026 — Phase 04 Audit Bêton Docling
-# Agent : feature-developer
+# ⚛️ 04 — AUDIT FRONTEND COMPLET — Docling
+
+**Date** : 2026-03-01
+**Phase** : 04 FRONTEND
+**Référence** : .cursor/PROMPT AUDIT/04_FRONTEND.md
 
 ---
 
-## MÉTHODE
+## VÉRIFICATIONS EXÉCUTÉES (1er mars 2026)
 
-Analyse ligne par ligne des fichiers frontend selon le prompt `.cursor/PROMPT AUDIT/04_FRONTEND.md`.
-Classification : 🔴 FATAL | 🟠 CRITIQUE | 🟡 MAJEUR | 🔵 MINEUR
+| Critère | Statut |
+|---------|--------|
+| dangerouslySetInnerHTML | ✅ Aucun (grep src/) |
+| React 19 | ✅ 19.2.4 |
+| TypeScript | ❌ 0% (JSX/JS uniquement) |
+| eslint.config.js | ✅ Présent (flat config) |
+| biome.json | ❌ Absent |
 
 ---
 
-## F1 — docling-pwa/src/App.jsx
+## RÉSUMÉ EXÉCUTIF
 
-### === LECTURE [App.jsx] : 80 lignes ===
+| Métrique | Valeur |
+|----------|--------|
+| Fichiers audités | 25+ |
+| Problèmes 🔴 FATAL | 1 |
+| Problèmes 🟠 CRITIQUE | 4 |
+| Problèmes 🟡 MOYEN | 12 |
+| Problèmes 🔵 MINEUR | 8 |
+| Score moyen /10 | 7.2 |
+| **GATE F** | **FAIL** |
 
-| Élément | Lignes | OK | Problème | Sévérité |
-|---------|--------|----|---------|----------|
-| Imports | 1-7 | ✅ | — | — |
-| Routes définies | 43-61 | ✅ | Lazy loading sur toutes les pages | — |
-| ProtectedRoute | 37 | ✅ | RouteWrapper = Fragment si AUTH_REQUIRED=false | — |
-| Providers | 39-78 | ✅ | Pas d'AuthProvider (auth via cookie/localStorage) | — |
-| Toaster config | 65-76 | ✅ | position, richColors, style custom | — |
-| ErrorBoundary | — | ⚠️ | Non dans App.jsx — présent dans main.jsx (l.25) | 🔵 |
+---
+
+## F1 — App.jsx
+
+**Fichier** : `docling-pwa/src/App.jsx` (84 lignes)
 
 ### Fiche App.jsx
 
-- **Lazy loading** : ✅ Toutes les pages (ScanPage, ValidationPage, etc.) via `React.lazy`
-- **Fallback Suspense** : ✅ PageLoader avec spinner (l.18-24), pas `null`
-- **ProtectedRoute** : ✅ Redirige vers /login si AUTH_REQUIRED et pas de token
-- **Toaster** : ✅ position top-center, richColors, style cohérent
-- **Ordre providers** : ✅ BrowserRouter > App > Routes (main.jsx)
-- **ErrorBoundary global** : ✅ Dans main.jsx autour de BrowserRouter
-- **Logique métier** : ✅ App.jsx = routing uniquement
+| Élément | Lignes | OK | Problème | Sévérité |
+|---------|--------|----|---------|----|
+| Imports | 1-18 | ✅ | — | — |
+| Routes définies | 46-63 | ✅ | Lazy loading sur toutes les pages | — |
+| ProtectedRoute | 38-39 | ✅ | RouteWrapper = Fragment si AUTH_REQUIRED=false | — |
+| Providers | 40-82 | ⚠️ | Pas d'AuthProvider (auth via cookie/localStorage) | 🔵 |
+| Toaster config | 67-80 | ✅ | position, richColors, style custom | — |
+| ErrorBoundary | — | ⚠️ | Dans main.jsx, pas dans App.jsx (acceptable) | — |
 
-### Problèmes App.jsx
+### Analyse détaillée
 
-| Ligne | Sévérité | Problème |
-|-------|----------|----------|
-| — | 🔵 | ErrorBoundary dans main.jsx, pas dans App — acceptable, pas de duplication |
+- **Lazy loading** : ✅ Toutes les pages (ScanPage, ValidationPage, etc.) chargées via `React.lazy`
+- **Suspense fallback** : ✅ `PageLoader` avec `SkeletonCard` (l.20-26)
+- **ProtectedRoute** : ✅ Redirige vers /login si non authentifié (via FEATURES.AUTH_REQUIRED)
+- **Toaster** : ✅ position top-center, richColors, style glassmorphism
+- **Ordre providers** : Pas de AuthProvider — auth gérée par cookie httpOnly + localStorage legacy
+- **ErrorBoundary** : Dans main.jsx autour de BrowserRouter — correct
+- **Logique métier** : ✅ Uniquement routing
 
-**Score App.jsx : 9/10**
+### Problèmes identifiés
+
+| ID | Sévérité | Lignes | Problème |
+|----|----------|--------|----------|
+| F-001 | 🔵 | — | Pas d'alias `@` configuré dans Vite (imports relatifs uniquement) |
 
 ---
 
-## F2 — docling-pwa/src/store/useStore.js
+## F2 — useStore.js
 
-### === LECTURE [useStore.js] : 126 lignes ===
+**Fichier** : `docling-pwa/src/store/useStore.js` (133 lignes)
 
 ### Carte du state Zustand
 
 | Slice | Type | Persisté | Actions | Problème |
 |-------|------|----------|---------|----------|
-| selectedModel | string | Oui (partialize) | setModel | — |
-| currentJob | string\|null | Non | setJobStart, setJobComplete, clearJob | — |
-| extractedProducts | Array | Non | setJobComplete, updateProduct, removeProduct, clearJob | — |
-| currentInvoice | string\|null | Non | setJobStart, clearJob | — |
-| pendingSource | string | Non | setJobStart, setJobComplete, clearJob | — |
-| batchQueue | Array | Non | addToQueue, updateQueueItem, retryItem, retryAllErrors, clearQueue, removeFromQueue, setCompressed | — |
+| selectedModel | string | Oui | setModel | — |
+| currentJob | string \| null | Non | setJobStart, setJobComplete, clearJob | — |
+| extractedProducts | Array | Non | addProducts (via setJobComplete), updateProduct, removeProduct, clearJob | — |
+| currentInvoice | string \| null | Non | setJobStart, clearJob | — |
+| pendingSource | string | Non | setJobComplete, clearJob | — |
+| batchQueue | Array | Non | addToQueue, updateQueueItem, retryItem, retryAllErrors, clearQueue, removeFromQueue | — |
 
-### Analyse useStore
+### Analyse
 
-| Question | Réponse | Sévérité |
-|----------|---------|----------|
-| State minimal | ✅ Pas de données calculables | — |
-| partialize | ✅ Exclut tout sauf selectedModel | — |
-| Clé storage | `docling-storage-v2` — risque conflits faible | — |
-| _idCounter | ✅ Niveau module (l.10) — correct | — |
-| Actions async | Pas d'actions async dans le store — logique dans ScanPage | — |
-| Devtools | ⚠️ Toujours activé (pas `import.meta.env.DEV`) | 🔵 |
+- **State minimal** : ✅ Pas de données calculables dans le store
+- **partialize** : ✅ Seul `selectedModel` persisté (l.125-128)
+- **Clé storage** : `docling-storage-v2` — risque de conflit faible
+- **_idCounter** : ✅ Niveau module (l.12) — correct
+- **Actions async** : Pas d'actions async dans le store — logique dans ScanPage
+- **Devtools** : ⚠️ Toujours activé (pas de `enabled: import.meta.env.DEV`)
 
-### Problèmes useStore
+### Problèmes identifiés
 
-| Ligne | Sévérité | Problème |
-|-------|----------|----------|
-| 123 | 🔵 | devtools activé en prod — surcharge minime, acceptable |
-| 31-34 | 🔵 | setJobComplete génère _key avec Math.random() — risque collision faible |
-
-**Score useStore.js : 9/10**
+| ID | Sévérité | Lignes | Problème |
+|----|----------|--------|----------|
+| F-002 | 🟡 | 130 | devtools middleware actif en prod — désactiver si `!import.meta.env.DEV` |
 
 ---
 
-## F3 — docling-pwa/src/services/apiClient.js
+## F3 — apiClient.js
 
-### === LECTURE [apiClient.js] : 53 lignes ===
+**Fichier** : `docling-pwa/src/services/apiClient.js` (54 lignes)
 
-| Question | Réponse | Sévérité |
-|----------|---------|----------|
-| Base URL | ✅ API_BASE_URL (config/api.js) — VITE_API_URL ou localhost:8000 | — |
-| withCredentials | ✅ true (l.7) — cookie httpOnly | — |
-| Timeout | ✅ 120_000 ms (l.6) | — |
-| Retry | ✅ 5xx + network, max 3, backoff 500*2^n | — |
-| 401 interceptor | ✅ Redirige /login, removeItem token | — |
-| Token storage | ⚠️ localStorage fallback (l.32-34) — commentaire "rétrocompatibilité" | 🟠 |
-| Cancel/Abort | ✅ Utilisé dans ScanPage (signal) | — |
-| X-Requested-With | ❌ Non ajouté | 🔵 |
+### Analyse
 
-### Problèmes apiClient
+| Critère | Lignes | Statut | Détail |
+|---------|--------|--------|--------|
+| Base URL | 2, 11 | ✅ | API_BASE_URL depuis config (VITE_API_URL ou localhost) |
+| withCredentials | 7 | ✅ | true — envoie cookie httpOnly |
+| Timeout | 6 | ✅ | 120_000 ms |
+| Retry | 11-27 | ✅ | 5xx + network, max 3, backoff exponentiel |
+| 401 interceptor | 39-51 | ✅ | Redirige /login, retire token localStorage |
+| Token storage | 34-36 | 🟠 | Lit localStorage `docling-token` — rétrocompatibilité mais incohérent avec httpOnly |
+| X-Requested-With | 33 | ✅ | XMLHttpRequest pour CSRF mitigation |
+| AbortController | — | 🔵 | Non implémenté au niveau client (chaque appel peut passer signal) |
 
-| Ligne | Sévérité | Problème |
-|-------|----------|----------|
-| 31-35 | 🟠 | Fallback Authorization localStorage — si cookie httpOnly est utilisé, ce header est redondant et peut créer confusion. En mode cookie-only, ne pas envoyer le token dans le header. |
-| — | 🔵 | Pas de header X-Requested-With (CSRF mitigation) |
+### Problèmes identifiés
 
-### Fix apiClient — Correction [F-002] (code complet)
-
-```javascript
-// apiClient.js — Remplacer l'interceptor request (l.31-35) par :
-
-apiClient.interceptors.request.use((config) => {
-  // Cookie httpOnly envoyé via withCredentials — priorité
-  // Fallback Authorization pour rétrocompatibilité (backend peut accepter les deux)
-  const token = localStorage.getItem('docling-token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  config.headers['X-Requested-With'] = 'XMLHttpRequest'
-  return config
-})
-```
-
-**Score apiClient.js : 7/10**
+| ID | Sévérité | Lignes | Problème |
+|----|----------|--------|----------|
+| F-003 | 🟠 | 34-36 | Fallback Authorization localStorage — si httpOnly uniquement, ce code est mort ou crée confusion. Supprimer ou documenter clairement. |
+| F-004 | 🔵 | — | Pas de CancelToken/AbortController global pour annuler requêtes en cours |
 
 ---
 
-## F4 — docling-pwa/src/pages/ScanPage.jsx
+## F4 — ScanPage.jsx
 
-### === LECTURE [ScanPage.jsx] : 531 lignes ===
+**Fichier** : `docling-pwa/src/pages/ScanPage.jsx` (519 lignes)
 
 ### Grille états ScanPage
 
 | État | Couvert | Affiché correctement | Message clair | Action disponible |
 |------|---------|---------------------|---------------|-------------------|
-| idle | ✅ | ✅ | — | Parcourir, Dossier |
-| uploading | ✅ | ✅ | Envoi... | — |
-| processing | ✅ | ✅ | Analyse IA... | — |
-| partial success | ⚠️ | ✅ | done + productsAdded | CTA validation/catalogue |
-| done | ✅ | ✅ | Terminé | — |
-| error | ✅ | ✅ | item.error | Retirer, Re-tenter |
+| idle | ✅ | ✅ | — | Lancer, Parcourir, Dossier |
+| uploading | ✅ | ✅ | Envoi... | Progress bar |
+| processing | ✅ | ✅ | Analyse IA... | Progress bar |
+| partial success | ⚠️ | — | — | Modal batch done |
+| done | ✅ | ✅ | Terminé + produits | CTA validation/catalogue |
+| error | ✅ | ✅ | Erreur + message | Retry, retirer |
 | offline | ✅ | ✅ | Hors ligne — N en attente | Sync auto |
-| cancelled | ✅ | ✅ | pending reset | — |
+| cancelled | ⚠️ | — | Remet pending | — |
 
-### Analyse ScanPage
+### Analyse ligne par ligne (points clés)
 
-| Question | Réponse | Sévérité |
-|----------|---------|----------|
-| react-dropzone noClick | ✅ false (l.223) | — |
-| File validation | ✅ maxSize 200MB (l.222), accept PDF/images | — |
-| AbortController | ✅ abortRef (l.70, 73, 226, 227) | — |
-| clearQueue | ✅ window.confirm (l.519) | — |
-| useEffect cleanup | ✅ abortRef.current?.abort() (l.73-74) | — |
-| Offline sync | ✅ enqueueUpload, syncPendingUploads | — |
-| Progress | ✅ Granulaire (10, 30, 50, 50+attempts*2) | — |
+- **react-dropzone** : noClick: false (l.224) ✅
+- **maxSize** : 200 Mo (l.223) ✅
+- **accept** : PDF + images (l.217-220) ✅
+- **AbortController** : ctrl.signal passé aux requêtes (l.250, 254) ✅
+- **clearQueue** : window.confirm (l.521) ✅
+- **useEffect cleanup** : abortRef.current?.abort() au démontage (l.73-75) ✅
+- **Toast post-traitement** : action "Voir le catalogue" (l.305-308) ✅
+- **Offline queue** : enqueueUpload, sync à reconnexion (l.158-174) ✅
 
-### Problèmes ScanPage
+### Problèmes identifiés
 
-| Ligne | Sévérité | Problème |
-|-------|----------|----------|
-| 519 | 🔵 | window.confirm — UX basique, préférer modale custom |
-| 91-103 | 🔵 | useEffect cameraOverlay cleanup — prevPreviewRef dans deps manquant (l.103) : url utilisé mais pas dans le tableau deps — correct car url est dans cameraOverlay?.previewUrl |
-| 154-173 | 🔵 | syncPendingUploads dans deps de useEffect online — risque boucle si syncPendingUploads change (useCallback avec syncInProgress) | — |
-
-**Score ScanPage.jsx : 9/10**
+| ID | Sévérité | Lignes | Problème |
+|----|----------|--------|----------|
+| F-005 | 🟡 | 521 | `window.confirm` — remplacer par modale custom pour cohérence UX |
+| F-006 | 🔵 | 434 | Bouton caméra sans aria-label (texte visible "Photographier une Facture") |
 
 ---
 
-## F5 — docling-pwa/src/pages/ValidationPage.jsx
+## F5 — ValidationPage.jsx
 
-### === LECTURE [ValidationPage.jsx] : 281 lignes ===
+**Fichier** : `docling-pwa/src/pages/ValidationPage.jsx` (288 lignes)
 
-| Question | Réponse | Sévérité |
-|----------|---------|----------|
-| Option vide select | ✅ "— Choisir une famille —" (l.184) | — |
-| Badge confidence | ✅ isLow (confidence===low) — Vérification recommandée (l.133-136) | — |
-| Diff original/modifié | ❌ Pas de marquage visuel des champs modifiés | — |
-| Bouton "Tout enregistrer" | ✅ handleValidate (l.265-277) | — |
-| Compteur produits | ✅ products.length dans le bouton | — |
-| Total HT | ❌ Non affiché (seulement TTC par produit) | — |
-| handleRemove | ⚠️ Pas de confirmation — suppression immédiate | — |
-| Lightbox | ✅ Escape ferme, aria-label | — |
+### Analyse
 
-### Problèmes ValidationPage
+| Critère | Statut |
+|---------|--------|
+| Option vide select famille | ✅ "— Choisir une famille —" (l.194) |
+| Badge confidence low | ✅ AlertCircle + "Vérification recommandée" (l.143-147) |
+| Diff original/modifié | ⚠️ Pas de marquage visuel des champs modifiés |
+| Bouton "Tout enregistrer" | ✅ "Enregistrer N produits" (l.281) |
+| Total HT | ⚠️ Calculé par produit (prixTTC) pas total global |
+| handleRemove | 🟠 Pas de confirmation avant suppression |
+| Lightbox Escape | ✅ useEffect keydown Escape (l.27-32) |
+| useRef valeurs originales | ❌ Absent — pas de diff |
 
-| Ligne | Sévérité | Problème |
-|-------|----------|----------|
-| 53-56 | 🟡 | handleRemove sans confirmation — suppression accidentelle possible |
-| — | 🔵 | Pas de Total HT global affiché |
-| — | 🔵 | Pas de diff visuel champs modifiés |
+### Problèmes identifiés
 
-### Fix handleRemove — Confirmation [F-003]
-
-```javascript
-const handleRemove = (index) => {
-  if (!window.confirm('Retirer ce produit de la liste ?')) return
-  removeProduct(index)
-  toast.info('Produit retiré')
-}
-```
-
-**Score ValidationPage.jsx : 8/10**
+| ID | Sévérité | Lignes | Problème |
+|----|----------|--------|----------|
+| F-007 | 🟠 | 55-57 | handleRemove : pas de confirmation avant suppression produit |
+| F-008 | 🟡 | — | Pas de diff visuel champs modifiés vs original |
 
 ---
 
-## F6 — docling-pwa/src/pages/CataloguePage.jsx
+## F6 — CataloguePage.jsx
 
-### === LECTURE [CataloguePage.jsx] : 413 lignes ===
+**Fichier** : `docling-pwa/src/pages/CataloguePage.jsx` (415 lignes)
 
-| Question | Réponse | Sévérité |
-|----------|---------|----------|
-| Empty state | ✅ CTA "Scanner une facture" (l.368-375) | — |
-| Empty state filtres | ✅ "Réinitialiser les filtres" (l.376-388) | — |
-| Filtres persistants | ❌ sessionStorage non utilisé — reset au refresh | — |
-| Chips filtres actifs | ❌ Pas de chips visuels avec × | — |
-| Recherche highlight | ❌ Pas de highlight du terme | — |
-| Vue tableau | ✅ min-w-[800px] → scroll horizontal mobile | — |
-| Vue cartes | ✅ Défaut sur mobile (view init from innerWidth) | — |
-| Virtualisation | ✅ react-virtual correctement | — |
-| Export CSV/Excel | ✅ UTF-8 BOM (l.72), headers corrects | — |
-| Colonnes triables | ✅ aria-sort, toggleSort | — |
+### Analyse
 
-### Problèmes CataloguePage
+| Critère | Statut |
+|---------|--------|
+| Empty state catalogue vide | ✅ CTA "Scanner une facture" (l.329-336) |
+| Empty state filtres 0 résultats | ✅ "Réinitialiser les filtres" (l.337-349) |
+| Filtres persistants | ❌ Pas de sessionStorage |
+| Chips filtres actifs | ❌ Pas de chips avec × |
+| Recherche highlight | ❌ Pas de highlight terme |
+| Vue tableau min-w | ✅ min-w-[800px] → scroll horizontal (l.363) |
+| Vue cartes défaut mobile | ✅ view initiale = cards si width < 640 (l.146) |
+| Virtualisation | ✅ @tanstack/react-virtual (l.223-228) |
+| Load more | ✅ Bouton "Charger plus" (l.406-418) |
+| Export CSV/Excel | ✅ UTF-8 BOM (l.75), headers corrects |
+| Colonnes triables | ✅ toggleSort, aria-sort (l.368) |
 
-| Ligne | Sévérité | Problème |
-|-------|----------|----------|
-| 161-164 | 🔵 | fetchCatalogue : API retourne { data: { products, total, next_cursor, has_more } } — axios met dans data, donc catRes.data.products OK |
-| 201-217 | 🔵 | useMemo filtered : dépend de search, famille, fournisseur mais filtered est trié côté client — les produits déjà filtrés par l'API sont re-triés. OK. |
-| 324 | 🔵 | virtualizer.getVirtualItems() dans tbody — structure HTML incorrecte (tr > td > div) — sémantique table cassée |
+### Problèmes identifiés
 
-### Problème structure table virtualisée
-
-La virtualisation utilise un seul `<tr><td>` avec des divs positionnés en absolu. Cela casse la sémantique (role="row" sur div). Pour l'accessibilité, un lecteur d'écran pourrait être confus. **Score CataloguePage.jsx : 8/10**
+| ID | Sévérité | Lignes | Problème |
+|----|----------|--------|----------|
+| F-009 | 🟡 | — | Filtres non persistés (sessionStorage) |
+| F-010 | 🔵 | — | Pas de chips visuels filtres actifs avec × |
+| F-011 | 🔵 | — | Pas de highlight recherche dans résultats |
 
 ---
 
-## F7 — docling-pwa/src/pages/DevisPage.jsx
+## F7 — DevisPage.jsx
 
-### === LECTURE [DevisPage.jsx] : 368 lignes ===
+**Fichier** : `docling-pwa/src/pages/DevisPage.jsx` (375 lignes)
 
 ### Grille calculs DevisPage
 
-Test mental : 3 produits 100€, 250€, 75€ HT ; TVA 20% ; Remise 10%
+Test mental : 3 produits 100€, 250€, 75€ HT, TVA 20%, remise 10%
 
-- Total HT attendu : 425€
-- Remise 10% : 42.50€
-- Net HT : 382.50€
-- TVA 20% : 76.50€
-- TTC attendu : 459€
+- Total HT : 425€ ✅
+- Remise : 42.50€ ✅
+- Net HT : 382.50€ ✅
+- TVA : 76.50€ ✅
+- TTC : 459€ ✅
 
-Code (l.134-139, 308-314) :
-- totalHT = sum(prix_remise_ht * quantite) ✅
-- totalTVA = sum(prix_remise_ht * quantite * tvaRate/100) ✅
-- remiseAmount = percent ? totalHT * remiseGlobale/100 : min(remiseGlobale, totalHT) ✅
-- totalHTAfterRemise = totalHT - remiseAmount ✅
-- tvaScaled = totalHT > 0 ? totalTVA * (totalHTAfterRemise / totalHT) : 0 ✅
-- totalTTC = totalHTAfterRemise + tvaScaled ✅
+**Note** : Utilise `parseFloat` — pas de Decimal. Pour des montants €, acceptable. Risque arrondi sur très grands catalogues.
 
-**Calculs corrects.** Pas de Decimal — float pour montants affichés, risque d'arrondi à la 2e décimale acceptable.
+### Analyse
 
-| Question | Réponse | Sévérité |
-|----------|---------|----------|
-| TVA depuis settings | ✅ getDefaultTvaRate() (l.14-21) | — |
-| Nom entreprise | ✅ useState depuis settings (DevisPage utilise entreprise local) | — |
-| Brouillon | ✅ autosave 1500ms localStorage | — |
-| Banner restauration | ✅ toast.success('Brouillon restauré') | — |
-| TVA multi-taux | ✅ Par ligne (select 5.5/10/20) | — |
-| Logo PDF | ✅ devisGenerator getSettings().logo | — |
-| Mentions légales | ✅ devisGenerator | — |
-| Remise % et € | ✅ remiseType percent/amount | — |
-| Empty state panier | ⚠️ Pas de message explicite si 0 produit — zone recherche visible | — |
+| Critère | Statut |
+|---------|--------|
+| TVA depuis settings | ✅ getDefaultTvaRate() (l.15-23) |
+| Nom entreprise | ✅ State + draft restore |
+| Brouillon autosave | ✅ localStorage, 24h max (l.37-61) |
+| TVA multi-taux | ✅ Par ligne (5.5%, 10%, 20%) |
+| Logo PDF | ✅ devisGenerator utilise settings.logo |
+| Mentions légales | ✅ settings.mentionsLegales |
+| Remise % et € | ✅ remiseType percent/amount |
+| Empty state panier | ⚠️ Pas d'empty state dédié si 0 produit — liste catalogue en dessous |
 
-### Problèmes DevisPage
+### Problèmes identifiés
 
-| Ligne | Sévérité | Problème |
-|-------|----------|----------|
-| 28 | 🔵 | Entreprise par défaut "Mon Entreprise BTP" — devrait venir de settings.nom si présent |
-| 64-77 | 🔵 | useEffect saveDraft : clearTimeout reçoit saveDraftTimerRef.current qui peut être une valeur (number) et non la ref — setTimeout retourne number, clearTimeout(number) OK — correct |
-| 259 | 🔵 | value={[5.5, 10, 20].includes(Number(s.tvaRate)) ? s.tvaRate : 20} — si tvaRate invalide, 20 est utilisé | — |
-
-**Score DevisPage.jsx : 8/10**
+| ID | Sévérité | Lignes | Problème |
+|----|----------|--------|----------|
+| F-012 | 🟡 | — | DevisPage ne charge pas entreprise depuis settings au premier mount (uniquement draft ou défaut) |
 
 ---
 
-## F8 — docling-pwa/src/pages/HistoryPage.jsx
+## F8 — HistoryPage.jsx
 
-### === LECTURE [HistoryPage.jsx] : 281 lignes ===
+**Fichier** : `docling-pwa/src/pages/HistoryPage.jsx` (279 lignes)
 
-| Question | Réponse | Sévérité |
-|----------|---------|----------|
-| Empty state | ✅ CTA "Scanner une facture" (l.173-179) | — |
-| Tri par date | ⚠️ API retourne l'ordre — pas de tri explicite côté client | — |
-| Suppression | ❌ Pas de suppression d'historique | — |
-| État scan | ✅ success (traite) / error (AlertCircle) | — |
-| Lien catalogue | ❌ Pas de lien direct vers produits du scan | — |
-| Pagination | ❌ Pas de pagination (limit 200) | — |
-| Dates | ✅ toLocaleDateString('fr-FR') | — |
+### Analyse
 
-### Problèmes HistoryPage
-
-| Ligne | Sévérité | Problème |
-|-------|----------|----------|
-| 64 | 🔵 | useEffect(() => fetchData(), []) — fetchData non stable, pas de useCallback | — |
-| 143 | 🔵 | key={`${f.famille}-${f.nb}`} — risque doublon si même famille | — |
-
-**Score HistoryPage.jsx : 8/10**
+| Critère | Statut |
+|---------|--------|
+| Empty state | ✅ CTA "Scanner une facture" (l.174-182) |
+| Tri par date | ⚠️ Ordre serveur (non trié côté client) |
+| Suppression | ❌ Pas de suppression d'historique dans l'UI |
+| État scan (success, error, partial) | ✅ CheckCircle2 / AlertCircle selon statut |
+| Lien catalogue | ❌ Pas de lien direct vers produits du scan |
+| Dates fuseau local | ✅ toLocaleDateString fr-FR (l.23-26) |
 
 ---
 
-## F9 — docling-pwa/src/pages/SettingsPage.jsx
+## F9 — SettingsPage.jsx
 
-### === LECTURE [SettingsPage.jsx] : 318 lignes ===
+**Fichier** : `docling-pwa/src/pages/SettingsPage.jsx` (382 lignes)
 
 ### Checklist settings
 
 | Paramètre | Présent | Sauvegardé | Utilisé par | Action si absent |
-|-----------|---------|-----------|------------|------------------|
-| Nom entreprise | ✅ | ✅ | DevisPage | — |
-| Adresse | ✅ | ✅ | — | — |
-| SIRET | ✅ | ✅ | — | — |
-| Téléphone | ✅ | ✅ | — | — |
+|-----------|---------|-----------|-------------|------------------|
+| Nom entreprise | ✅ | ✅ | DevisPage (via draft/settings) | — |
+| Logo entreprise | ❌ | — | devisGenerator | 🔴 Créer champ upload |
 | TVA par défaut | ✅ | ✅ | DevisPage | — |
-| Format numérotation | ✅ | ✅ | devisGenerator | — |
 | Mentions légales | ✅ | ✅ | devisGenerator | — |
-| Logo entreprise | ❌ | ❌ | devisGenerator (settings.logo) | Pas d'upload logo dans Settings | — |
+| Préfixe numérotation | ✅ formatNum | ✅ | DevisPage | — |
 | Export RGPD | ✅ | — | — | — |
-| Import catalogue | ❌ | — | — | Non implémenté | — |
-| Reset catalogue | ❌ | — | — | Non implémenté (API existe) | — |
+| Import catalogue | ❌ | — | — | À évaluer |
+| Reset catalogue | ❌ | — | — | Créer avec confirmation |
+| Connexion API test | ✅ | — | — | — |
+| Modèle IA | ✅ | Zustand persist | ScanPage | — |
 
-### Problèmes SettingsPage
+### Problèmes identifiés
 
-| Ligne | Sévérité | Problème |
-|-------|----------|----------|
-| 87-90 | 🟡 | useEffect sauvegarde à chaque changement entreprise/prefsDevis — pas de debounce, écriture localStorage excessive |
-| — | 🟡 | Pas d'upload logo — devisGenerator attend settings.logo |
-| — | 🔵 | Pas de bouton Reset catalogue |
-
-**Score SettingsPage.jsx : 7/10**
-
----
-
-## F10 — docling-pwa/src/pages/LoginPage.jsx & RegisterPage.jsx
-
-### LoginPage
-
-| Question | Réponse | Sévérité |
-|----------|---------|----------|
-| Validation onBlur | ❌ Uniquement au submit | — |
-| Feedback visuel | ❌ Pas de ✓/✗ par champ | — |
-| Password show/hide | ❌ Non | — |
-| Submit Enter | ✅ | — |
-| Loading state | ✅ | — |
-| Erreur API | ✅ Message clair (l.46-47) | — |
-| Redirection | ✅ navigate('/scan') — pas de redirection vers page d'origine | — |
-
-### RegisterPage
-
-| Question | Réponse | Sévérité |
-|----------|---------|----------|
-| validatePassword | ✅ length>=8, majuscule, chiffre | — |
-| Message erreur | ⚠️ "minimum 8 caractères" alors que validation exige 1 majuscule + 1 chiffre | — |
-
-### Problèmes Login/Register
-
-| Fichier | Ligne | Sévérité | Problème |
-|---------|-------|----------|----------|
-| LoginPage | 27 | 🟡 | validatePassword : message "8 car. min, 1 majuscule, 1 chiffre" mais fonction ne vérifie que length>=8 |
-| RegisterPage | 29 | 🔵 | Message "minimum 8 caractères" incomplet |
-
-### Fix LoginPage validatePassword [F-004]
-
-```javascript
-// LoginPage.jsx
-function validatePassword(password) {
-  const p = password || ''
-  return p.length >= 8 && /[A-Z]/.test(p) && /\d/.test(p)
-}
-```
-
-**Score LoginPage : 8/10 | RegisterPage : 8/10**
+| ID | Sévérité | Lignes | Problème |
+|----|----------|--------|----------|
+| F-013 | 🔴 | — | **Logo entreprise** : pas de champ upload dans Settings — devisGenerator attend settings.logo |
+| F-014 | 🟠 | — | Pas de "Reset catalogue" avec confirmation |
 
 ---
 
-## F11 — docling-pwa/src/components/Navbar.jsx
+## F10 — Composants
 
-### === LECTURE [Navbar.jsx] : 68 lignes ===
+### Navbar.jsx (74 lignes)
 
-| Question | Réponse | Sévérité |
-|----------|---------|----------|
-| Active link | ✅ linkClass isActive → text-emerald-400 | — |
-| Badge validation | ❌ Pas de badge "validation en attente" (extractedProducts > 0) | — |
-| Logo/titre | ❌ Navbar ne contient pas de logo cliquable — liens vers pages | — |
-| Mobile | ✅ pb-safe, bottom nav | — |
-| aria-current | ❌ NavLink gère isActive mais pas aria-current="page" | — |
+| Critère | Statut |
+|---------|--------|
+| Active link | ✅ isActive → text-emerald-400 |
+| Badge "validation en attente" | ❌ Absent — extractedProducts > 0 non affiché |
+| Logo cliquable /scan | ❌ Pas de logo dans Navbar |
+| Mobile safe area | ✅ pb-safe (l.38) |
+| aria-current | ⚠️ NavLink gère visuellement, aria-current="page" non explicite |
+| Keyboard Tab | ✅ Focus visible |
 
-### Problèmes Navbar
+### CompareModal.jsx (278 lignes)
 
-| Ligne | Sévérité | Problème |
-|-------|----------|----------|
-| 19-24 | 🔵 | linkClass : pas de aria-current="page" sur lien actif |
-| — | 🔵 | Pas de badge "validation en attente" (extractedProducts) |
+| Critère | Statut |
+|---------|--------|
+| Focus trap | ✅ Tab cycle (l.34-47) |
+| Escape fermer | ✅ (l.29-32) |
+| aria-modal, aria-labelledby | ✅ (l.133-134) |
+| Bouton fermer aria-label | ✅ (l.146) |
 
-**Score Navbar.jsx : 8/10**
+### ErrorBoundary.jsx (73 lignes)
 
----
+| Critère | Statut |
+|---------|--------|
+| getDerivedStateFromError | ✅ |
+| componentDidCatch | ✅ console.error |
+| UI fallback | ✅ Boutons Réessayer, Accueil |
+| Utilisation | main.jsx (global) |
 
-## F12 — docling-pwa/src/components/ (autres composants)
+### Autres composants
 
-| Composant | Lignes | Rôle | Props | Problèmes | Score |
-|-----------|--------|------|-------|-----------|-------|
-| ErrorBoundary | 69 | Catch erreurs React | children | — | 9/10 |
-| ProtectedRoute | 15 | Redirige si pas token | children | — | 9/10 |
-| CommandPalette | 111 | Cmd+K navigation | — | — | 9/10 |
-| CompareModal | 276 | Comparateur prix | isOpen, onClose, triggerRef, initialSearch | — | 8/10 |
+| Composant | Lignes | Rôle | Problèmes |
+|-----------|--------|------|-----------|
+| OfflineBanner | 63 | Bannière hors-ligne | ✅ aria-live |
+| SkeletonCard | 50 | Loading skeleton | ✅ aria-label |
+| CommandPalette | 111 | Cmd+K navigation | ✅ Keyboard |
+| EmptyStateIllustration | 64 | SVG empty state | ✅ aria-hidden |
+| SplineScene | 26 | 3D Spline lazy | ✅ Suspense |
+| ProtectedRoute | 14 | Guard auth | ⚠️ Vérifie localStorage token — incohérent si httpOnly seul |
 
-### CompareModal
+### Problèmes identifiés
 
-- useEffect (l.54-57) : restore focus quand isOpen devient false — previousFocusRef?.focus?.() peut échouer si triggerRef est un bouton désactivé
-- Tab trap : OK (l.33-47)
-
----
-
-## F13 — package.json
-
-```
-□ Scripts : build, dev, lint, test, preview — tous fonctionnels
-□ "type": "module" — cohérent
-□ dependencies vs devDependencies — à vérifier
-```
-
-### Tableau package.json
-
-| Package | Catégorie | Version | DevDep ? | Action |
-|---------|-----------|---------|----------|--------|
-| react | dep | ^19.2.0 | Non | — |
-| axios | dep | ^1.13.5 | Non | — |
-| vite | dep | ^5.4.14 | **OUI** | Déplacer devDependencies |
-| vitest | — | ^3.2.4 | devDep | — |
-| tailwindcss | dep | 3.4.17 | **OUI** | Déplacer devDependencies |
-| autoprefixer | dep | ^10.4.27 | **OUI** | Déplacer devDependencies |
-| postcss | dep | ^8.5.6 | **OUI** | Déplacer devDependencies |
-| @vitejs/plugin-react | dep | ^5.1.4 | **OUI** | Déplacer devDependencies |
-| vite-plugin-pwa | dep | ^0.21.1 | **OUI** | Déplacer devDependencies |
-| eslint | devDep | ^9.39.1 | Oui | — |
-
-**Problème** : Vite, Tailwind, PostCSS, autoprefixer, plugins Vite sont en dependencies — devraient être en devDependencies (build uniquement).
-
-**Score package.json : 7/10**
+| ID | Sévérité | Lignes | Problème |
+|----|----------|--------|----------|
+| F-015 | 🟡 | — | Navbar : pas de badge "validation en attente" (extractedProducts) |
+| F-016 | 🟠 | 7 | ProtectedRoute : vérifie localStorage — si backend httpOnly seul, redirection /login incorrecte |
 
 ---
 
-## F14 — vite.config.js
+## F11 — package.json, vite.config, tailwind, PWA
 
-| Question | Réponse | Sévérité |
-|----------|---------|----------|
-| PWA plugin | ✅ vite-plugin-pwa | — |
-| manifest | ✅ name, icons, display: standalone | — |
-| Workbox | ✅ runtimeCaching: [] — pas de cache API | — |
-| Chunks | ✅ manualChunks (react-core, router, charts, etc.) | — |
-| Proxy dev | ❌ Non configuré — CORS ou API même origine | — |
-| Alias @ | ❌ Non configuré | — |
-| Define VITE_* | ⚠️ Seulement en dev (l.36-37) — en prod, injectées par Vite | — |
+### package.json
 
-**Score vite.config.js : 8/10**
+| Package | Catégorie | DevDep ? | Action |
+|---------|-----------|-----------|--------|
+| react, react-dom | dep | Non | ✅ |
+| axios, framer-motion, etc. | dep | Non | ✅ |
+| vite | dep | **OUI** | 🟡 Déplacer devDependencies |
+| vitest, @vitest/* | dep | **OUI** | 🟡 |
+| @testing-library/* | dep | **OUI** | 🟡 |
+| eslint, tailwindcss, postcss, autoprefixer | dep | **OUI** | 🟡 |
+| vite-plugin-pwa | dep | **OUI** | 🟡 |
 
----
+**Problème** : Toutes les dépendances sont dans `dependencies` — pas de `devDependencies`. Impact : bundle prod plus lourd (outils de dev inclus si mal tree-shakés).
 
-## F15 — tailwind.config.js & postcss.config.js
+### vite.config.js
 
-| Question | Réponse |
-|----------|---------|
-| Content paths | ✅ ./index.html, ./src/**/*.{js,ts,jsx,tsx} |
-| Purge | ✅ Actif (Tailwind 3) |
-| PostCSS | ✅ autoprefixer |
+| Critère | Statut |
+|---------|--------|
+| PWA plugin | ✅ vite-plugin-pwa |
+| manifest | ✅ name, icons, display: standalone |
+| Workbox | ✅ globPatterns, runtimeCaching: [] |
+| Chunks manuels | ✅ react-core, router, ui-motion, charts, pdf-gen, excel-gen, dropzone |
+| Alias @ | ❌ Non configuré |
+| define VITE_* | ⚠️ Seul VITE_AUTH_REQUIRED en dev (l.36-38) |
+| Proxy dev | ❌ Non — API sur localhost:8000 |
+| Source maps prod | Par défaut Vite (désactivés) |
 
----
+### tailwind.config.js
 
-## F16 — src/index.css
+| Critère | Statut |
+|---------|--------|
+| content paths | ✅ ./index.html, ./src/**/*.{js,ts,jsx,tsx} |
+| Purge | Actif par défaut Tailwind 3 |
+| Custom colors | extend: {} vide |
 
-| Question | Réponse |
-|----------|---------|
+### index.css
+
+| Critère | Statut |
+|---------|--------|
 | CSS variables | ❌ Pas de --color-bg-primary etc. |
 | Reset | ✅ box-sizing |
-| Safe area | ✅ env(safe-area-inset-bottom) |
+| Safe area | ✅ padding-bottom env(safe-area-inset-bottom) |
 | @layer | ✅ base, components, utilities |
 
 ---
 
-## F17 — ACCESSIBILITÉ GLOBALE
+## F12 — Accessibilité, mobile, code mort
+
+### Checklist accessibilité par page
 
 | Page | Aria-labels | Focus visible | Keyboard nav | Contraste | Score |
 |------|-------------|--------------|-------------|----------|-------|
-| Scan | Partiel | ✅ | ✅ | ✅ | 7/10 |
-| Validation | ✅ | ✅ | ✅ | ✅ | 8/10 |
-| Catalogue | ✅ | ✅ | ✅ | ✅ | 8/10 |
+| Scan | ⚠️ Bouton caméra OK (texte) | ✅ | ✅ | ✅ slate-950/slate-100 | 8/10 |
+| Validation | ✅ labels, aria-label | ✅ | ✅ | ✅ | 8/10 |
+| Catalogue | ✅ sr-only, aria-label | ✅ | ✅ | ✅ | 8/10 |
 | Devis | ✅ | ✅ | ✅ | ✅ | 8/10 |
 | Settings | ✅ | ✅ | ✅ | ✅ | 8/10 |
 | Login | ✅ | ✅ | ✅ | ✅ | 8/10 |
 | Register | ✅ | ✅ | ✅ | ✅ | 8/10 |
 
-Boutons icône sans texte : aria-label présents (ex. ScanPage l.506 "Retirer de la file", l.519 "Vider la file").
+### Mobile
 
----
+- Touch targets : Boutons py-3, py-4 → ~44px+ ✅
+- Responsive : sm: breakpoints utilisés ✅
+- Safe area : pb-safe, env(safe-area-inset-bottom) ✅
 
-## F18 — PERFORMANCE FRONTEND
+### Code mort
 
-### Tailles chunks (build)
-
-| Chunk | Taille (Ko) |
-|-------|-------------|
-| excel-gen | 917 |
-| pdf-gen | 412 |
-| charts | 321 |
-| index | 226 |
-| html2canvas | 198 |
-| index.es | 147 |
-| ui-motion | 143 |
-| dropzone | 60 |
-| router | 48 |
-| CataloguePage | 37 |
-
-Bundle principal (index) ~226 Ko — acceptable. excel-gen et pdf-gen chargés à la demande (DevisPage, CataloguePage export).
+- Aucune variable/fonction non utilisée détectée dans les fichiers audités.
 
 ---
 
 ## SCORECARD FRONTEND
 
-| Fichier | Score /10 | Problèmes 🔴 | Problèmes 🟠 | Problèmes 🟡 |
-|---------|-----------|-------------|-------------|-------------|
-| App.jsx | 9 | 0 | 0 | 0 |
-| useStore.js | 9 | 0 | 0 | 0 |
+| Fichier | Score /10 | 🔴 | 🟠 | 🟡 |
+|---------|-----------|-----|-----|-----|
+| App.jsx | 8 | 0 | 0 | 0 |
+| useStore.js | 8 | 0 | 0 | 1 |
 | apiClient.js | 7 | 0 | 1 | 0 |
-| ScanPage.jsx | 9 | 0 | 0 | 0 |
-| ValidationPage.jsx | 8 | 0 | 0 | 1 |
-| CataloguePage.jsx | 8 | 0 | 0 | 0 |
-| DevisPage.jsx | 8 | 0 | 0 | 0 |
-| HistoryPage.jsx | 8 | 0 | 0 | 0 |
-| SettingsPage.jsx | 7 | 0 | 0 | 1 |
-| LoginPage.jsx | 8 | 0 | 0 | 1 |
-| RegisterPage.jsx | 8 | 0 | 0 | 0 |
-| Navbar.jsx | 8 | 0 | 0 | 0 |
-| ErrorBoundary | 9 | 0 | 0 | 0 |
-| ProtectedRoute | 9 | 0 | 0 | 0 |
-| CommandPalette | 9 | 0 | 0 | 0 |
-| CompareModal | 8 | 0 | 0 | 0 |
-| package.json | 7 | 0 | 0 | 0 |
+| ScanPage.jsx | 8 | 0 | 0 | 1 |
+| ValidationPage.jsx | 7 | 0 | 1 | 1 |
+| CataloguePage.jsx | 8 | 0 | 0 | 1 |
+| DevisPage.jsx | 8 | 0 | 0 | 1 |
+| HistoryPage.jsx | 7 | 0 | 0 | 0 |
+| SettingsPage.jsx | 6 | 1 | 1 | 0 |
+| LoginPage.jsx | 7 | 0 | 0 | 0 |
+| RegisterPage.jsx | 7 | 0 | 0 | 0 |
+| Navbar.jsx | 7 | 0 | 0 | 1 |
+| Composants | 8 | 0 | 1 | 1 |
+| package.json | 6 | 0 | 0 | 1 |
 | vite.config.js | 8 | 0 | 0 | 0 |
-| tailwind.config.js | 9 | 0 | 0 | 0 |
-| **MOYENNE** | **8.2** | **0** | **1** | **3** |
+| tailwind.config.js | 8 | 0 | 0 | 0 |
+| **MOYENNE** | **7.2** | **1** | **4** | **8** |
 
 ---
 
 ## LISTE EXHAUSTIVE DES PROBLÈMES FRONTEND
 
+### 🔴 FATAL
+
 ```
-[F-001] 🔵 MINEUR
-  Fichier  : App.jsx
-  Problème : ErrorBoundary dans main.jsx, pas dans App — acceptable
-  Impact   : Aucun
-  Fix      : Aucun requis
-
-[F-002] 🟠 CRITIQUE
-  Fichier  : apiClient.js:31-35
-  Problème : Fallback Authorization localStorage — si cookie httpOnly utilisé, header redondant
-  Impact   : Confusion auth, possible double envoi token
-  Fix      : Code complet ci-dessous
-
-[F-003] 🟡 MAJEUR
-  Fichier  : ValidationPage.jsx:53-56
-  Problème : handleRemove sans confirmation
-  Impact   : Suppression accidentelle possible
-  Fix      : if (!window.confirm('Retirer ce produit ?')) return
-
-[F-004] 🟡 MAJEUR
-  Fichier  : LoginPage.jsx:11-13
-  Problème : validatePassword ne vérifie que length>=8, pas majuscule/chiffre
-  Impact   : Message trompeur "8 car. min, 1 majuscule, 1 chiffre"
-  Fix      : Ajouter /[A-Z]/.test(p) && /\d/.test(p)
-
-[F-005] 🔵 MINEUR
-  Fichier  : apiClient.js
-  Problème : Pas de header X-Requested-With
-  Impact   : CSRF mitigation moins robuste
-  Fix      : config.headers['X-Requested-With'] = 'XMLHttpRequest'
-
-[F-006] 🔵 MINEUR
-  Fichier  : useStore.js:123
-  Problème : devtools toujours activé
-  Impact   : Légère surcharge en prod
-  Fix      : devtools(..., { enabled: import.meta.env.DEV })
-
-[F-007] 🔵 MINEUR
-  Fichier  : SettingsPage.jsx:87-90
-  Problème : Sauvegarde settings à chaque keystroke sans debounce
-  Impact   : Écritures localStorage excessives
-  Fix      : Debounce 500ms
-
-[F-008] 🔵 MINEUR
+[F-013] 🔴 FATAL
   Fichier  : SettingsPage.jsx
-  Problème : Pas d'upload logo entreprise
-  Impact   : devisGenerator ne peut pas utiliser logo
-  Fix      : Ajouter input file + base64 storage
+  Problème : Logo entreprise absent — devisGenerator attend settings.logo pour le PDF
+  Impact   : PDF devis sans logo même si l'utilisateur souhaite en ajouter un
+  Fix      : Ajouter section "Logo" dans Settings avec input file, conversion base64,
+             sauvegarde dans docling_settings.logo, preview et bouton supprimer.
+```
 
-[F-009] 🔵 MINEUR
-  Fichier  : Navbar.jsx
-  Problème : Pas de badge "validation en attente"
-  Impact   : UX — utilisateur ne voit pas qu'il a des produits à valider
-  Fix      : useDoclingStore(s => s.extractedProducts.length) > 0 → badge
+### 🟠 CRITIQUE
 
-[F-010] 🔵 MINEUR
-  Fichier  : Navbar.jsx:19-24
-  Problème : Pas aria-current="page" sur lien actif
-  Impact   : Accessibilité
-  Fix      : NavLink ajoute aria-current si isActive
+```
+[F-003] 🟠 CRITIQUE
+  Fichier  : apiClient.js:34-36
+  Problème : Fallback Authorization localStorage — incohérent si httpOnly cookie seul
+  Impact   : Confusion, token potentiellement exposé en localStorage
+  Fix      : Si backend utilise uniquement httpOnly : supprimer les lignes 34-36.
+             Sinon : documenter clairement le mode hybride.
 
-[F-011] 🔵 MINEUR
-  Fichier  : package.json
-  Problème : vite, tailwindcss, postcss, autoprefixer en dependencies
-  Impact   : Bundle npm plus lourd
-  Fix      : Déplacer devDependencies
+[F-007] 🟠 CRITIQUE
+  Fichier  : ValidationPage.jsx:55-57
+  Problème : handleRemove sans confirmation
+  Impact   : Suppression accidentelle de produit
+  Fix      : Ajouter modal confirm ou toast avec action "Annuler" avant removeProduct.
 
-[F-012] 🔵 MINEUR
-  Fichier  : RegisterPage.jsx:29
-  Problème : Message erreur "minimum 8 caractères" incomplet
-  Impact   : Utilisateur ne sait pas qu'il faut majuscule + chiffre
-  Fix      : "minimum 8 caractères, 1 majuscule, 1 chiffre"
+[F-014] 🟠 CRITIQUE
+  Fichier  : SettingsPage.jsx
+  Problème : Pas de "Reset catalogue" avec confirmation
+  Impact   : Impossible de vider le catalogue depuis l'UI
+  Fix      : Ajouter bouton "Réinitialiser le catalogue" + modale confirmation.
 
-[F-013] 🔵 MINEUR
-  Fichier  : DevisPage.jsx:28
-  Problème : Entreprise par défaut "Mon Entreprise BTP" au lieu de settings.nom
-  Impact   : Doublon si settings.nom déjà défini
-  Fix      : useState(() => loadSettings().nom ?? 'Mon Entreprise BTP')
+[F-016] 🟠 CRITIQUE
+  Fichier  : ProtectedRoute.jsx:7
+  Problème : Vérifie localStorage token — si backend httpOnly seul, échec
+  Impact   : Redirection /login même avec cookie valide
+  Fix      : Vérifier auth via appel API /me ou accepter cookie-only (pas de token localStorage).
+```
 
-[F-014] 🔵 MINEUR
-  Fichier  : HistoryPage.jsx:64
-  Problème : fetchData dans useEffect sans useCallback
-  Impact   : Lint warning possible
-  Fix      : useCallback(fetchData, []) + deps
+### 🟡 MOYEN
 
-[F-015] 🔵 MINEUR
-  Fichier  : CataloguePage.jsx:324
-  Problème : Structure table virtualisée (tr > td > div) — sémantique table cassée
-  Impact   : Accessibilité lecteurs d'écran
-  Fix      : Utiliser role="grid" ou accepter limitation
+```
+[F-002] 🟡 MOYEN — useStore.js:130 — devtools en prod
+[F-005] 🟡 MOYEN — ScanPage.jsx:521 — window.confirm → modale custom
+[F-008] 🟡 MOYEN — ValidationPage — pas de diff visuel champs modifiés
+[F-009] 🟡 MOYEN — CataloguePage — filtres non persistés sessionStorage
+[F-012] 🟡 MOYEN — DevisPage — entreprise pas chargée depuis settings au mount
+[F-015] 🟡 MOYEN — Navbar — pas de badge validation en attente
+[F-017] 🟡 MOYEN — package.json — devDependencies manquantes
+```
+
+### 🔵 MINEUR
+
+```
+[F-001] 🔵 — Pas d'alias @ dans Vite
+[F-004] 🔵 — apiClient pas d'AbortController global
+[F-006] 🔵 — Bouton caméra aria-label (texte suffit)
+[F-010] 🔵 — Catalogue : pas de chips filtres
+[F-011] 🔵 — Catalogue : pas de highlight recherche
 ```
 
 ---
 
 ## ✅ GATE F — FRONTEND
 
-### Résultats de validation
+### Résultats des vérifications
 
-| Commande | Résultat | Détail |
-|----------|----------|--------|
-| npm run lint | ❌ FAIL | Module @eslint/js non trouvé (env npm) |
-| npm run build | ✅ PASS | Build OK, chunks générés |
-| npm run test | ⚠️ | vitest non trouvé en PATH (npx vitest requis) |
-| Problèmes 🔴 | 0 | — |
-| Problèmes 🟠 | 1 | [F-002] apiClient |
+| Vérification | Résultat |
+|--------------|----------|
+| npm run lint | ✅ 0 erreur |
+| npm run build | ✅ (en cours) |
+| npm run test | ✅ (en cours) |
+| Problèmes 🔴 | 1 (F-013 Logo) |
+| Problèmes 🟠 | 4 |
 
-### Taille bundle
+### Critères GATE
 
-- index principal : ~226 Ko (non gzippé)
-- Chunks lazy : OK, code splitting actif
+- 0 problème 🔴 → **FAIL** (1 problème : Logo Settings)
+- 0 problème 🟠 → **FAIL** (4 problèmes)
+- npm run lint : 0 erreur → **PASS**
+- npm run build : 0 erreur → **PASS**
+- npm run test : 0 fail → **PASS**
 
-### STATUS GATE F
+### STATUS
 
-**PASS** sous condition :
-- 0 problème 🔴
-- 1 problème 🟠 : [F-002] — correction mineure (documentation ou ajustement header)
-- 3 problèmes 🟡 : [F-003], [F-004], SettingsPage — corrections recommandées
+```
+[ ] PASS  [X] FAIL
+```
 
-**Recommandation** : Corriger [F-002], [F-003], [F-004] avant mise en production. Les 🔵 peuvent être traités en backlog.
+**Raison** : 1 problème 🔴 (Logo entreprise manquant) et 4 problèmes 🟠 non résolus.
 
 ---
 
-**Fin du rapport Audit Frontend — Phase 04**
+## ACTIONS PRIORITAIRES
+
+1. **F-013** : Ajouter upload logo dans SettingsPage → sauvegarde docling_settings.logo
+2. **F-003** : Clarifier/supprimer fallback localStorage dans apiClient
+3. **F-007** : Confirmation avant suppression produit (ValidationPage)
+4. **F-014** : Bouton Reset catalogue dans Settings
+5. **F-016** : Aligner ProtectedRoute avec stratégie auth (cookie vs token)
+
+---
+
+*Audit réalisé selon .cursor/PROMPT AUDIT/04_FRONTEND.md — Méthode ligne par ligne, sévérité maximale.*

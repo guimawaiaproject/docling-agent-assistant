@@ -4,15 +4,16 @@
 $root = $PSScriptRoot
 
 @(
-    "docling-pwa\node_modules",
+    "apps\pwa\node_modules",
     "node_modules",
     ".pytest_cache",
     "venv",
+    "apps\api\.venv",
     ".venv",
-    "docling-pwa\dist",
+    "apps\pwa\dist",
     "dist",
     "coverage",
-    "docling-pwa\coverage",
+    "apps\pwa\coverage",
     ".cursor"
 ) | ForEach-Object {
     $path = Join-Path $root $_

@@ -1,5 +1,5 @@
 # Python
-__pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 venv/
@@ -16,6 +16,7 @@ venv/
 *.db
 *.db-shm
 *.db-wal
+backups/
 
 # IDE
 .vscode/
@@ -28,20 +29,28 @@ venv/
 Thumbs.db
 
 # Node
-node_modules/
-docling-pwa/node_modules/
 **/node_modules/
+.pnpm-store/
 
 # Build & cache
+**/.ruff_cache/
+**/.pytest_cache/
+**/dist/
+**/.vite/
+**/coverage/
 build/
-dist/
-coverage/
+.coverage
 htmlcov/
-.vite/
 *.log
-.pytest_cache/
 *.orig
 *.bak
+
+# MkDocs
+docs/site/
+site/
+
+# uv
+.uv/
 
 # Streamlit
 .streamlit/secrets.toml
@@ -56,3 +65,4 @@ service_account.json
 # Test data (large binary files)
 PDF Test/
 Docling_Factures/
+data/samples/*.pdf

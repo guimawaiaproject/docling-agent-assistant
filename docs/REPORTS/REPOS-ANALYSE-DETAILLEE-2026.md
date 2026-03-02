@@ -1,14 +1,14 @@
 # Rapport détaillé — Dépôts de référence
 
-**Date** : 27 février 2026  
+**Date** : 27 février 2026
 **Objectif** : Synthèse ligne par ligne des dépôts partagés pour alimenter AGENTS, SKILLS, WORKFLOW, RULES et routine DevOps senior.
 
 ---
 
 ## 1. awesome-ai-coding-tools
 
-**URL** : https://github.com/ai-for-developers/awesome-ai-coding-tools  
-**Type** : Liste curated d'outils IA pour le développement  
+**URL** : https://github.com/ai-for-developers/awesome-ai-coding-tools
+**Type** : Liste curated d'outils IA pour le développement
 **Taille** : ~725 lignes, 20+ catégories
 
 ### Structure
@@ -47,8 +47,8 @@
 
 ## 2. cursor-agents (pridiuksson)
 
-**URL** : https://github.com/pridiuksson/cursor-agents  
-**Type** : Template multi-agents pour Cursor (Claude + Gemini CLI + Qwen Code)  
+**URL** : https://github.com/pridiuksson/cursor-agents
+**Type** : Template multi-agents pour Cursor (Claude + Gemini CLI + Qwen Code)
 **Philosophie** : Engineering over hacking — code production-ready, pas des démos
 
 ### Fichiers analysés
@@ -108,8 +108,8 @@ SA → Intégration → Exemple production-ready
 
 ## 3. agentic-project-management (APM)
 
-**URL** : https://github.com/sdi2200262/agentic-project-management  
-**Type** : Framework de gestion de projet avec workflows multi-agents structurés  
+**URL** : https://github.com/sdi2200262/agentic-project-management
+**Type** : Framework de gestion de projet avec workflows multi-agents structurés
 **Install** : `npm install -g agentic-pm` puis `apm init`
 
 ### Support IDEs

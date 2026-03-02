@@ -32,46 +32,22 @@ Un chef de chantier BTP reçoit des factures de fournisseurs espagnols/catalans 
 ## Architecture détaillée
 
 ```
-docling-agent-assistant/
-|
-+-- api.py                              # Routeur FastAPI (async + BackgroundTasks)
-|
-+-- backend/
-|   +-- core/
-|   |   +-- config.py                   # Validation environnement (.env)
-|   |   +-- db_manager.py               # PostgreSQL Neon via asyncpg (pool, upsert, pagination cursor)
-|   |   +-- orchestrator.py             # Pipeline : prétraitement -> Gemini -> validation -> BDD
+docling/
++-- apps/
+|   +-- api/                            # Backend FastAPI (uv)
+|   |   +-- main.py
+|   |   +-- core/                       # config, db_manager, orchestrator
+|   |   +-- services/                   # gemini, auth, storage, watchdog
+|   |   +-- schemas/                    # invoice.py
+|   |   +-- migrations/                 # Alembic a001..a008
+|   |   +-- tests/                      # pytest
 |   |
-|   +-- schemas/
-|   |   +-- invoice.py                  # Modèles Pydantic (Product, InvoiceExtractionResult)
-|   |
-|   +-- services/
-|   |   +-- gemini_service.py           # Connecteur Gemini + retry rate-limit + cache par model_id
-|   |   +-- image_preprocessor.py       # Nettoyeur photos mobiles (OpenCV)
-|   |   +-- storage_service.py          # Upload S3 Storj (boto3)
-|   |   +-- watchdog_service.py         # Surveillance dossier magique
-|   |   +-- auth_service.py             # JWT (PyJWT) + hash argon2id
-|   |
-|   +-- utils/
-|   |   +-- serializers.py              # serialize_row (asyncpg Record -> dict)
-|   |
-|   +-- schema_neon.sql                 # Schéma SQL de référence
+|   +-- pwa/                            # Frontend React PWA (pnpm)
+|       +-- src/features/               # scan, catalogue, devis, auth
+|       +-- src/shared/                 # config, lib, ui
 |
-+-- migrations/                         # Alembic (a001 baseline, a002 constraints, a003 FK)
-|   +-- env.py
-|   +-- versions/
-|
-+-- docling-pwa/                        # Frontend PWA React
-|   +-- src/
-|   |   +-- pages/                      # ScanPage, ValidationPage, CataloguePage, DevisPage, HistoryPage, SettingsPage
-|   |   +-- components/                 # Navbar, CompareModal
-|   |   +-- config/api.js               # URLs endpoints
-|   |   +-- services/imageService.js    # Compression WebP avant upload
-|   |   +-- store/useStore.js           # Zustand (state management)
-|   +-- vite.config.js                  # Config Vite + PWA + HTTPS dev
-|
-+-- tests/                              # pytest (91) + vitest (43) = 134 tests
-+-- docs/                               # Documentation
++-- scripts/                            # validate_all, health_check
++-- docs/                               # MkDocs
 ```
 
 ---

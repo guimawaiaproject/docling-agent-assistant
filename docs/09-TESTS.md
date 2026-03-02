@@ -1,6 +1,6 @@
 # Rapport de tests complet — Docling Agent v3/v4
 
-**Date :** 25 février 2026  
+**Date :** 25 février 2026
 **Projet :** docling-agent-assistant
 
 ---
@@ -18,14 +18,14 @@
 
 | Catégorie | Dossier | Tests |
 |-----------|---------|-------|
-| Unitaires | `tests/01_unit/` | config, gemini_service, image_preprocessor, models, orchestrator, validators |
-| Intégration | `tests/02_integration/` | database, storage |
-| API | `tests/03_api/` | auth, catalogue, health, invoices, reset_admin, stats_history, sync |
-| E2E | `tests/04_e2e/` | catalogue_browse, scan_flow, settings_sync |
-| Sécurité | `tests/05_security/` | auth_bypass, headers, injection |
-| Performance | `tests/06_performance/` | response_times, locustfile |
-| Data integrity | `tests/07_data_integrity/` | api_db_coherence, constraints, transactions |
-| External | `tests/08_external_services/` | extraction_reelle |
+| Unitaires | `apps/api/core/`, `apps/api/services/`, `apps/api/schemas/` | config, gemini_service, image_preprocessor, orchestrator, invoice |
+| Intégration | `apps/api/tests/integration/` | database, storage |
+| API | `apps/api/tests/api/` | auth, catalogue, health, invoices, reset_admin, stats_history, sync |
+| E2E | `apps/api/tests/e2e/` | catalogue_browse, scan_flow, settings_sync |
+| Sécurité | `apps/api/tests/security/` | auth_bypass, headers, injection |
+| Performance | `apps/api/tests/performance/` | response_times, locustfile |
+| Data integrity | `apps/api/tests/data_integrity/` | api_db_coherence, constraints, transactions |
+| External | `apps/api/tests/external_services/` | extraction_reelle |
 
 ### Corrections appliquées pendant les tests
 
@@ -87,9 +87,9 @@
 
 | Fichier | Problème | Correction |
 |---------|----------|------------|
-| `api.py` | CORS `allow_origins=["*"]` | `Config.ALLOWED_ORIGINS` |
-| `api.py` | Pas de limite taille upload | Max 50 Mo, HTTP 413 si dépassement |
-| `api.py` | DELETE reset non protégé | Vérification JWT admin |
+| `apps/api/main.py` | CORS `allow_origins=["*"]` | `Config.ALLOWED_ORIGINS` |
+| `apps/api/main.py` | Pas de limite taille upload | Max 50 Mo, HTTP 413 si dépassement |
+| `apps/api/main.py` | DELETE reset non protégé | Vérification JWT admin |
 | `storage_service.py` | `datetime.utcnow()` deprecated | `datetime.now(timezone.utc)` |
 
 ### Problèmes restants (non critiques)
@@ -122,7 +122,7 @@
 
 ## 6. Tests UI/UX
 
-**Note :** Les tests E2E Playwright sont configurés dans `tests/04_e2e/` avec fixtures centralisées dans `conftest.py`. Tests manuels complémentaires recommandés :
+**Note :** Les tests E2E Playwright sont configurés dans `apps/api/tests/e2e/` avec fixtures centralisées dans `apps/api/tests/conftest.py`. Tests manuels complémentaires recommandés :
 
 1. **Scan** : Glisser-déposer PDF/image → Lancer → Vérifier progression
 2. **Validation** : Édition des champs, suppression produit, lightbox facture
@@ -150,14 +150,17 @@
 ## 8. Commandes pour relancer les tests
 
 ```bash
-# Backend (91 tests)
-pytest tests/01_unit -v --tb=short
+# Backend (apps/api)
+cd apps/api && uv run pytest tests -v --tb=short
 
-# Frontend (43 tests)
-cd docling-pwa && npx vitest run
+# Frontend (apps/pwa)
+cd apps/pwa && pnpm test
 
-# Tous les tests (hors slow/external)
-pytest tests/ -v -m "not slow and not external"
+# Tous les tests backend (hors slow/external)
+cd apps/api && uv run pytest tests -v -m "not slow and not external"
+
+# Script E2E manuel (API doit être lancée)
+uv run python scripts/test_api_e2e.py --skip-extraction
 ```
 
 ---

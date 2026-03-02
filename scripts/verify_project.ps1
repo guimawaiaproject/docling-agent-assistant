@@ -59,16 +59,16 @@ if (-not $env:JWT_SECRET) {
 # ─── BACKEND ───────────────────────────────────────────────────────────────
 Write-Host "`n=== BACKEND ===" -ForegroundColor Magenta
 
-Test-Step "B1" "Import api (python -c 'import api')" {
-    python -c "import api; print('OK')"
-}
-
-Test-Step "B2" "Lint backend (ruff)" {
-    ruff check api.py backend/ scripts/ tests/ migrations/
+Test-Step "B1" "Import API (apps/api main)" {
+    Push-Location apps/api
+    uv run python -c "import main; print('OK')"
+    Pop-Location
 }
 
 Test-Step "B3" "Tests backend (pytest)" {
-    python -m pytest tests/01_unit -v --tb=short -q -x
+    Push-Location apps/api
+    uv run pytest tests -v --tb=short -q -x
+    Pop-Location
 }
 
 # ─── FRONTEND ──────────────────────────────────────────────────────────────
@@ -77,23 +77,23 @@ Write-Host "`n=== FRONTEND ===" -ForegroundColor Magenta
 $env:VITE_API_URL = "http://localhost:8000"
 $env:VITE_AUTH_REQUIRED = "true"
 
-$usePnpm = Test-Path "docling-pwa\pnpm-lock.yaml"
+$usePnpm = Test-Path "apps\pwa\pnpm-lock.yaml"
 
 Test-Step "F1" "Lint frontend (eslint)" {
-    Push-Location docling-pwa
+    Push-Location apps\pwa
     if ($usePnpm) { pnpm run lint } else { npm run lint }
     Pop-Location
 } -Optional
 
 Test-Step "F2" "Build frontend (vite)" {
-    Push-Location docling-pwa
+    Push-Location apps\pwa
     if ($usePnpm) { pnpm run build } else { npm run build }
     Pop-Location
 }
 
 Test-Step "F3" "Tests frontend (vitest)" {
-    Push-Location docling-pwa
-    if ($usePnpm) { pnpm exec vitest run --reporter=dot } else { npx vitest run --reporter=dot }
+    Push-Location apps\pwa
+    if ($usePnpm) { pnpm run test } else { npm run test }
     Pop-Location
 }
 

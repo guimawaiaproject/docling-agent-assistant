@@ -26,8 +26,8 @@ Génération XML : `make skills-to-prompt`
 | Règle | Globs | Usage |
 |-------|-------|-------|
 | agent-skills | **/* | Flux Agent Skills |
-| backend-conventions | api.py, backend/** | FastAPI, asyncpg |
-| frontend-conventions | docling-pwa/src/** | React, Vite, Zustand |
+| backend-conventions | apps/api/** | FastAPI, asyncpg |
+| frontend-conventions | apps/pwa/src/** | React, Vite, Zustand |
 | testing-patterns | tests/**, **/*.test.* | pytest, Vitest |
 | security-guidelines | **/* | Auth, injection, secrets |
 

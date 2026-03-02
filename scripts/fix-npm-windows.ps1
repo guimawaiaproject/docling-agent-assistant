@@ -28,8 +28,8 @@ if (-not $pnpmOk) {
 }
 
 # 3. Nettoyer et installer
-Write-Host "`n[3] Nettoyage docling-pwa..." -ForegroundColor Yellow
-Push-Location (Join-Path $root "docling-pwa")
+Write-Host "`n[3] Nettoyage apps/pwa..." -ForegroundColor Yellow
+Push-Location (Join-Path $root "apps/pwa")
 Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
 Remove-Item package-lock.json -ErrorAction SilentlyContinue
 Remove-Item pnpm-lock.yaml -ErrorAction SilentlyContinue
@@ -51,7 +51,7 @@ if ($installOk) {
     Write-Host "[5] Build frontend..." -ForegroundColor Yellow
     $env:VITE_API_URL = "http://localhost:8000"
     $env:VITE_AUTH_REQUIRED = "true"
-    Push-Location (Join-Path $root "docling-pwa")
+    Push-Location (Join-Path $root "apps/pwa")
     if (Test-Path "pnpm-lock.yaml") {
         pnpm run build 2>&1
     } else {

@@ -38,5 +38,5 @@ Docling doit extraire des factures fournisseurs BTP (PDF, photos) via IA, stocke
 
 ## Références
 
-- [01-ARCHITECTURE.md](../01-ARCHITECTURE.md)
+- [overview.md](overview.md)
 - [Neon docs](https://neon.tech/docs)

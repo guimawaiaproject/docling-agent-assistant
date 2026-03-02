@@ -39,28 +39,24 @@ echo "[0/2] Nettoyage des processus sur ports 8000 et 5173..."
 kill_port 8000
 kill_port 5173
 
-# Check venv
-if [[ ! -f "venv/bin/python" && ! -f "venv/Scripts/python.exe" ]]; then
-  echo "[ERROR] Environnement virtuel Python manquant."
-  echo "Veuillez exécuter: python -m venv venv"
+# Check uv / api
+if [[ ! -f "apps/api/pyproject.toml" ]]; then
+  echo "[ERROR] apps/api introuvable."
   exit 1
 fi
 
-PYTHON="venv/bin/python"
-[[ -f "venv/Scripts/python.exe" ]] && PYTHON="venv/Scripts/python.exe"
-
 # Start backend
 echo "[1/2] Démarrage du Backend FastAPI (Port 8000)..."
-$PYTHON api.py &
+(cd apps/api && uv run uvicorn main:app --host 0.0.0.0 --port 8000) &
 BACKEND_PID=$!
 
 # Start frontend
 echo "[2/2] Démarrage du Frontend PWA (Port 5173)..."
-if [[ -f "docling-pwa/package.json" ]]; then
-  (cd docling-pwa && npx vite) &
+if [[ -f "apps/pwa/package.json" ]]; then
+  (cd apps/pwa && pnpm exec vite) &
   FRONTEND_PID=$!
 else
-  echo "[WARNING] Dossier docling-pwa introuvable."
+  echo "[WARNING] Dossier apps/pwa introuvable."
   FRONTEND_PID=""
 fi
 

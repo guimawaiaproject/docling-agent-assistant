@@ -1,0 +1,9 @@
+{
+  "name": "docling",
+  "private": true,
+  "pnpm": {
+    "overrides": {
+      "tailwindcss": "3.4.17"
+    }
+  }
+}

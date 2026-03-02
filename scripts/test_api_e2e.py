@@ -2,7 +2,7 @@
 """
 Script E2E — Test de l'API Docling Agent avec factures réelles.
 Usage: python scripts/test_api_e2e.py [--base-url URL] [--skip-extraction]
-L'API doit être démarrée (python api.py) avant d'exécuter ce script.
+L'API doit être démarrée: cd apps/api && uv run uvicorn main:app
 """
 import argparse
 import json
@@ -10,15 +10,13 @@ import sys
 import time
 from pathlib import Path
 
-# Ajouter la racine du projet au path
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
 try:
-    import requests
+    import httpx
 except ImportError:
-    print("❌ requests manquant. Exécuter: pip install requests")
+    print("❌ httpx manquant. Exécuter: uv sync (racine) ou pip install httpx")
     sys.exit(1)
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def find_pdfs() -> list[Path]:
@@ -74,20 +72,22 @@ def run_tests(base_url: str, skip_extraction: bool) -> bool:
     # ─── 1. Health ───────────────────────────────────────────────
     print("[1/8] Health check...")
     try:
-        r = requests.get(f"{base_url}/health", timeout=10)
+        with httpx.Client(timeout=10) as client:
+            r = client.get(f"{base_url}/health")
         if r.status_code == 200 and r.json().get("status") == "ok":
             ok("Health OK")
         else:
             fail("Health", f"status={r.status_code} body={r.text[:200]}")
-    except requests.RequestException as e:
+    except httpx.RequestError as e:
         fail("Health", str(e))
-        print("\n[!] L'API ne repond pas. Demarrez-la avec: python api.py")
+        print("\n[!] L'API ne repond pas. Demarrez: cd apps/api && uv run uvicorn main:app")
         return False
 
     # ─── 2. Root ──────────────────────────────────────────────────
     print("\n[2/8] Root endpoint...")
     try:
-        r = requests.get(f"{base_url}/", timeout=5)
+        with httpx.Client(timeout=5) as client:
+            r = client.get(f"{base_url}/")
         if r.status_code == 200 and "Docling" in str(r.json().get("message", "")):
             ok("Root OK")
         else:
@@ -98,7 +98,8 @@ def run_tests(base_url: str, skip_extraction: bool) -> bool:
     # ─── 3. Catalogue ─────────────────────────────────────────────
     print("\n[3/8] Catalogue...")
     try:
-        r = requests.get(f"{base_url}/api/v1/catalogue", timeout=10)
+        with httpx.Client(timeout=10) as client:
+            r = client.get(f"{base_url}/api/v1/catalogue")
         if r.status_code == 200:
             data = r.json()
             if "products" in data:
@@ -113,7 +114,8 @@ def run_tests(base_url: str, skip_extraction: bool) -> bool:
     # ─── 4. Fournisseurs ──────────────────────────────────────────
     print("\n[4/8] Fournisseurs...")
     try:
-        r = requests.get(f"{base_url}/api/v1/catalogue/fournisseurs", timeout=10)
+        with httpx.Client(timeout=10) as client:
+            r = client.get(f"{base_url}/api/v1/catalogue/fournisseurs")
         if r.status_code == 200:
             data = r.json()
             fournisseurs = data.get("fournisseurs", data) if isinstance(data, dict) else data
@@ -126,7 +128,8 @@ def run_tests(base_url: str, skip_extraction: bool) -> bool:
     # ─── 5. Stats ──────────────────────────────────────────────────
     print("\n[5/8] Stats...")
     try:
-        r = requests.get(f"{base_url}/api/v1/stats", timeout=10)
+        with httpx.Client(timeout=10) as client:
+            r = client.get(f"{base_url}/api/v1/stats")
         if r.status_code == 200:
             data = r.json()
             ok(f"Stats OK (total_produits={data.get('total_produits', '?')})")
@@ -138,7 +141,8 @@ def run_tests(base_url: str, skip_extraction: bool) -> bool:
     # ─── 6. History ───────────────────────────────────────────────
     print("\n[6/8] History...")
     try:
-        r = requests.get(f"{base_url}/api/v1/history", timeout=10)
+        with httpx.Client(timeout=10) as client:
+            r = client.get(f"{base_url}/api/v1/history")
         if r.status_code == 200:
             data = r.json()
             history = data.get("history", [])
@@ -151,7 +155,8 @@ def run_tests(base_url: str, skip_extraction: bool) -> bool:
     # ─── 7. Sync status ────────────────────────────────────────────
     print("\n[7/8] Sync status...")
     try:
-        r = requests.get(f"{base_url}/api/v1/sync/status", timeout=10)
+        with httpx.Client(timeout=10) as client:
+            r = client.get(f"{base_url}/api/v1/sync/status")
         if r.status_code == 200:
             ok("Sync status OK")
         else:
@@ -173,12 +178,12 @@ def run_tests(base_url: str, skip_extraction: bool) -> bool:
                 with open(pdf_path, "rb") as f:
                     files = {"file": (pdf_path.name, f, "application/pdf")}
                     data = {"model": "gemini-2.5-flash", "source": "pc"}
-                    r = requests.post(
-                        f"{base_url}/api/v1/invoices/process",
-                        files=files,
-                        data=data,
-                        timeout=30,
-                    )
+                    with httpx.Client(timeout=30) as client:
+                        r = client.post(
+                            f"{base_url}/api/v1/invoices/process",
+                            files=files,
+                            data=data,
+                        )
                 if r.status_code != 202:
                     fail("Process", f"status={r.status_code} (attendu 202) body={r.text[:300]}")
                 else:
@@ -195,10 +200,10 @@ def run_tests(base_url: str, skip_extraction: bool) -> bool:
                         while elapsed < max_wait:
                             time.sleep(step)
                             elapsed += step
-                            rs = requests.get(
-                                f"{base_url}/api/v1/invoices/status/{job_id}",
-                                timeout=10,
-                            )
+                            with httpx.Client(timeout=10) as client:
+                                rs = client.get(
+                                    f"{base_url}/api/v1/invoices/status/{job_id}"
+                                )
                             if rs.status_code != 200:
                                 fail("Status poll", f"status={rs.status_code}")
                                 break
@@ -219,7 +224,7 @@ def run_tests(base_url: str, skip_extraction: bool) -> bool:
                             fail("Extraction", "Timeout polling")
             except FileNotFoundError:
                 fail("PDF", f"Fichier introuvable: {pdf_path}")
-            except requests.RequestException as e:
+            except httpx.RequestError as e:
                 fail("Request", str(e))
             except Exception as e:
                 fail("Extraction", str(e))

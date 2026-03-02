@@ -1,0 +1,46 @@
+site_name: Docling
+docs_dir: docs
+site_dir: site
+# Port 8100 pour éviter conflit avec API (8000)
+dev_addr: "127.0.0.1:8100"
+theme:
+  name: material
+  language: fr
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Mode sombre
+    - scheme: slate
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Mode clair
+nav:
+  - Accueil: index.md
+  - Architecture:
+    - Vue d'ensemble: architecture/overview.md
+    - Backend: architecture/backend.md
+    - Frontend: architecture/frontend.md
+    - Analyse UI: architecture/ui-analysis.md
+  - Tests: 09-TESTS.md
+  - Guides:
+    - Installation: guides/installation.md
+    - Développement: guides/development.md
+    - Scripts: guides/scripts.md
+    - Dépendances: guides/dependencies.md
+    - Déploiement: guides/deployment.md
+    - Contribution: guides/contributing.md
+  - API:
+    - Endpoints: api/endpoints.md
+  - Workflow:
+    - README: workflow/README.md
+    - Multi-agent: workflow/MULTI-AGENT-WORKFLOW.md
+  - Agents IA:
+    - Usage: ai-agents/usage.md
+  - Annexes:
+    - Changelog: changelog.md
+    - Glossaire: GLOSSARY.md

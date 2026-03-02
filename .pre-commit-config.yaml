@@ -1,4 +1,4 @@
-# Pre-commit hooks — Docling
+# Pre-commit — Docling (apps/ monorepo)
 # Install: pip install pre-commit && pre-commit install
 # Run: pre-commit run --all-files
 
@@ -8,7 +8,7 @@ repos:
     hooks:
       - id: ruff
         args: [--fix]
-        files: ^(api\.py|backend/|scripts/|tests/|migrations/)
+        files: ^(apps/api/|scripts/)
 
   - repo: local
     hooks:
@@ -17,6 +17,14 @@ repos:
         entry: python scripts/validate_skills.py
         language: system
         pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier
+        entry: node scripts/prettier_precommit.js
+        language: system
+        files: ^apps/pwa/src/
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -28,3 +36,4 @@ repos:
       - id: check-added-large-files
         args: ['--maxkb=500']
       - id: detect-private-key
+      - id: check-merge-conflict

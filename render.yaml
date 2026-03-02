@@ -1,4 +1,4 @@
-# render.yaml — Render.com Infrastructure as Code (SQLite 2026)
+# render.yaml — Render.com IaC (Neon PostgreSQL 2026)
 services:
   - type: web
     name: docling-agent
@@ -7,7 +7,17 @@ services:
     branch: main
     dockerfilePath: ./Dockerfile
     envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: PWA_URL
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: ENVIRONMENT
+        value: production
       - key: WATCHDOG_FOLDER
         value: ./Docling_Factures

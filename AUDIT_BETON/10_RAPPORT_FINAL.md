@@ -1,26 +1,33 @@
 # 📋 10 — RAPPORT FINAL
 # Scorecard · Plan d'action · Verdict
-# Audit Bêton Docling Agent v3 — 28 février 2026
+# Audit Bêton Docling — 1er mars 2026
 
 ---
 
-## RÉSUMÉ EXÉCUTIF
+## EXÉCUTION PHASES 01–10 (1er mars 2026)
 
-L'Audit Bêton Docling Agent v3 a été exécuté sur les phases 01 à 09. Le projet présente une **base solide** : architecture claire, isolation multi-tenant correcte, tests de sécurité présents, et aucune faille 🔴 FATAL identifiée dans le code applicatif.
+| Phase | Exécutée | Vérifications clés |
+|-------|----------|-------------------|
+| 01 Nettoyage | ✅ | Lockfiles concurrents (package-lock + pnpm) → corriger |
+| 02 Cartographie | ✅ | lifespan OK, TypeScript 0%, React 19 |
+| 03 Backend | ✅ | ruff OK, SQL params OK, _escape_like |
+| 04 Frontend | ✅ | dangerouslySetInnerHTML 0 |
+| 05 BDD | ✅ | Migrations a001–a008, index complets |
+| 06 Sécurité | ✅ | IDOR mitigé, JWT/Argon2 OK |
+| 07 Tests | ✅ | ~90 backend, ~51 frontend, test_isolation |
+| 08 Build | ✅ | render.yaml, deploy.yml, Docker |
+| 09 Performance | ✅ | N+1 insert_anonymous_price à batchifier |
+| 10 Rapport | ✅ | Agrégation ci-dessous |
 
-**Verdict : CONDITIONNEL**
+---
 
-Le projet n'est **pas prêt pour un déploiement production** sans corrections préalables. Deux problèmes bloquants concernent la configuration de déploiement (render.yaml, deploy.yml). Une fois ces correctifs appliqués, le projet sera déployable.
+## PRINCIPE
 
-| Métrique | Valeur |
-|----------|--------|
-| Score total | 72/90 |
-| Problèmes 🔴 | 2 (déploiement uniquement) |
-| Problèmes 🟠 | 4 (dont 3 corrigés dans les audits) |
-| Problèmes 🟡 | ≥ 15 |
-| npm run build | ✅ 0 erreur |
-| pytest | ⚠️ À valider (JWT_SECRET requis) |
-| npm run test | ⚠️ À valider (npx vitest) |
+```
+Le rapport final agrège les résultats des phases 01 à 09.
+Chaque domaine a un score /10.
+Le verdict est binaire : PRÊT PROD / NON PRÊT / CONDITIONNEL
+```
 
 ---
 
@@ -30,26 +37,14 @@ Le projet n'est **pas prêt pour un déploiement production** sans corrections p
 |---------|-----------|------|-----------|
 | 01 Nettoyage | 8 | PASS | — |
 | 02 Cartographie | 9 | PASS | — |
-| 03 Backend | 8 | PASS | — |
-| 04 Frontend | 8 | PASS | 1 🟠 apiClient |
+| 03 Backend | 8 | FAIL | test_upload_file_reel (MissingContentLength) |
+| 04 Frontend | 7 | FAIL | 1 🔴 Logo, 4 🟠 apiClient, confirmation, reset, ProtectedRoute |
 | 05 BDD | 9 | PASS | — |
-| 06 Sécurité | 8 | PASS | — |
-| 07 Tests | 7 | PASS | — |
-| 08 Build | 8 | **FAIL** | 2 🔴 render.yaml, deploy.yml |
-| 09 Performance | 7 | PASS | — |
-| **TOTAL** | **72/90** | — | **2 🔴** |
-
-### Détail des scores par phase
-
-- **01 Nettoyage** : 10 fichiers anciens audits supprimés, build OK, .gitignore complété. GATE PASS.
-- **02 Cartographie** : 100 % des fichiers source répertoriés, aucune dépendance circulaire. GATE PASS.
-- **03 Backend** : JWT_SECRET ≥ 32 chars et BatchSaveRequest limite 500 produits corrigés. 0 🔴, 0 🟠 restants. GATE PASS.
-- **04 Frontend** : 1 🟠 apiClient (fallback Authorization localStorage). Build OK. GATE PASS sous condition.
-- **05 BDD** : Isolation multi-tenant OK, requêtes paramétrées. Index idx_jobs_user_id manquant (impact limité). GATE PASS.
-- **06 Sécurité** : Rate limit /process et HSTS prod appliqués. 0 🔴. GATE PASS.
-- **07 Tests** : ~170 tests, auth et isolation couverts. Conflit conftest à résoudre. GATE PASS.
-- **08 Build** : Build frontend OK. **render.yaml** sans DATABASE_URL/JWT_SECRET et **deploy.yml** condition secrets incorrecte → GATE FAIL.
-- **09 Performance** : Synthèse des audits 03–08. Pas de N+1, pagination, pool OK. Chunks >500 kB. GATE PASS.
+| 06 Sécurité | 6 | FAIL | CVE haute pip (5+) + npm (4) |
+| 07 Tests | 8 | PASS | — |
+| 08 Build | 9 | PASS | — |
+| 09 Performance | 6 | FAIL | N+1, bundle Spline, export sans LIMIT |
+| **TOTAL** | **70/90** | **4 FAIL** | **≥ 1 🔴, ≥ 4 🟠, 6 🟠 perf** |
 
 ---
 
@@ -59,19 +54,19 @@ Le projet n'est **pas prêt pour un déploiement production** sans corrections p
 
 ```
 PRÊT PROD si :
-  → 0 problème 🔴                    ❌ (2 présents)
-  → 0 problème 🟠                     ⚠️ (1 restant : apiClient)
+  → 0 problème 🔴                    ❌ (1 : Logo Settings)
+  → 0 problème 🟠                     ❌ (4 frontend + 6 perf)
   → < 5 problèmes 🟡                  ⚠️ (≥ 15)
   → npm run build = 0 erreur          ✅
-  → pytest = 0 fail                  ⚠️ (à valider)
-  → npm run test = 0 fail            ⚠️ (à valider)
+  → pytest = 0 fail                  ❌ (test_upload_file_reel)
+  → npm run test = 0 fail             ✅
 ```
 
 ### Critères NON PRÊT
 
 ```
 NON PRÊT si :
-  → Au moins 1 🔴 ou 1 🟠             ✅ (2 🔴)
+  → Au moins 1 🔴 ou 1 🟠             ✅ (1 🔴 + 10 🟠)
 ```
 
 ### Critères CONDITIONNEL
@@ -84,103 +79,106 @@ CONDITIONNEL si :
 
 ### Décision finale
 
-**VERDICT : CONDITIONNEL**
+**VERDICT : NON PRÊT**
 
-Le projet est **déployable après correction des 2 bloqueurs** (render.yaml, deploy.yml). Les problèmes 🟠 restants (apiClient, etc.) sont recommandés mais non bloquants pour un premier déploiement.
+Le projet **n'est pas déployable en production** tant que :
+1. **CVE haute** (pip + npm) ne sont pas corrigées
+2. **Logo entreprise** manquant dans Settings (devis PDF incomplet)
+3. **test_upload_file_reel** échoue (pytest)
+4. Problèmes 🟠 frontend (apiClient, confirmation, reset, ProtectedRoute)
+5. Problèmes 🟠 performance (N+1, export sans LIMIT, bundle Spline)
 
 ---
 
-## R3 — PLAN D'ACTION
+## R3 — PLAN D'ACTION PRIORISÉ
 
-### Bloqueurs (à corriger avant déploiement)
-
-| Sévérité | Fichier | Ligne | Action |
-|----------|---------|-------|--------|
-| 🔴 | render.yaml | envVars | Ajouter DATABASE_URL (sync: false), JWT_SECRET (sync: false), PWA_URL, SENTRY_DSN. Corriger commentaire "SQLite" → PostgreSQL. |
-| 🔴 | .github/workflows/deploy.yml | if: | Remplacer `secrets.DEPLOY_PROVIDER == 'render'` par `vars.DEPLOY_PROVIDER` ou workflow_dispatch. |
-
-### Problèmes critiques recommandés (🟠)
+### 🔴 BLOQUEURS (avant tout déploiement)
 
 | Sévérité | Fichier | Ligne | Action |
 |----------|---------|-------|--------|
-| 🟠 | docling-pwa/src/services/apiClient.js | 31-35 | Ajuster fallback Authorization vs cookie httpOnly ; ajouter X-Requested-With. |
-| 🟠 | migrations/ | — | Créer a007 : idx_jobs_user_id, ck_factures_statut. |
-| 🟠 | migrations/a002, a003 | — | Rendre ADD CONSTRAINT idempotent (DO $$ ... EXCEPTION). |
+| 🔴 | requirements.txt / venv | — | `pip install -U cryptography filelock werkzeug wheel` — corriger CVE haute |
+| 🔴 | docling-pwa/package.json | — | `npm update vite-plugin-pwa@0.19.8` (ou version fixée) — corriger CVE serialize-javascript |
+| 🔴 | docling-pwa/src/pages/SettingsPage.jsx | — | Ajouter section upload **Logo entreprise** (input file, base64, docling_settings.logo) |
+| 🔴 | tests/02_integration/test_storage.py | — | Marquer `@pytest.mark.skip` ou corriger put_object (MissingContentLength) pour test_upload_file_reel |
 
-### Problèmes majeurs (🟡) — Backlog
+### 🟠 CRITIQUES (cette session ou court terme)
+
+| Sévérité | Fichier | Ligne | Action |
+|----------|---------|-------|--------|
+| 🟠 | docling-pwa/src/services/apiClient.js | 34-36 | Supprimer ou documenter fallback Authorization localStorage vs httpOnly |
+| 🟠 | docling-pwa/src/pages/ValidationPage.jsx | 55-57 | Ajouter confirmation avant handleRemove (modal ou toast) |
+| 🟠 | docling-pwa/src/pages/SettingsPage.jsx | — | Ajouter bouton **Reset catalogue** + modale confirmation |
+| 🟠 | docling-pwa/src/components/ProtectedRoute.jsx | 7 | Vérifier auth via API /me ou accepter cookie-only (pas token localStorage) |
+| 🟠 | backend/core/orchestrator.py | 127-136 | Batch insert_anonymous_price (1 INSERT VALUES au lieu de N) |
+| 🟠 | backend/core/db_manager.py | get_user_export_data | Ajouter LIMIT ou pagination (risque OOM) |
+| 🟠 | docling-pwa/src/pages/CataloguePage.jsx | — | Lazy-load exceljs au clic Export (dynamic import) |
+| 🟠 | backend/services/storage_service.py | 63-68 | Configurer timeout boto3 (connect_timeout, read_timeout) |
+
+### 🟡 MAJEURS (backlog)
 
 | Sévérité | Fichier | Action |
 |----------|---------|--------|
-| 🟡 | api.py | Limite max BatchSaveRequest (fait), logging request_id. |
-| 🟡 | orchestrator.py | Rollback si upsert échoue alors que upload réussit. |
-| 🟡 | storage_service.py | Sanitiser filename (path traversal). |
-| 🟡 | gemini_service.py | Timeout explicite sur generate_content. |
-| 🟡 | ValidationPage.jsx | Confirmation handleRemove. |
-| 🟡 | LoginPage.jsx | validatePassword : majuscule + chiffre. |
-| 🟡 | SettingsPage.jsx | Debounce sauvegarde, upload logo. |
-| 🟡 | db_manager.py | LIMIT sur get_user_export_data. |
-| 🟡 | auth_service.py | logger.warning pour token invalide. |
-| 🟡 | config.py | Validation chemin WATCHDOG_FOLDER. |
-
-### Problèmes mineurs (🔵) — Backlog
-
-| Sévérité | Fichier | Action |
-|----------|---------|--------|
-| 🔵 | api.py | Scinder en routers (invoices, catalogue, auth). |
-| 🔵 | package.json | Script test: "npx vitest run". |
-| 🔵 | .dockerignore | Ajouter build/, coverage/, .pytest_cache/, venv/, .ruff_cache/. |
-| 🔵 | .env.example | Ajouter ENVIRONMENT, PORT. |
-| 🔵 | Navbar.jsx | Badge validation en attente, aria-current. |
-| 🔵 | CataloguePage.jsx | Structure table virtualisée (accessibilité). |
+| 🟡 | api.py | Rate limit get_sync_status (30/min) — B-001 |
+| 🟡 | community_service.py | _escape_like sur fournisseur — B-002 |
+| 🟡 | useStore.js | Désactiver devtools en prod |
+| 🟡 | ScanPage.jsx | Remplacer window.confirm par modale custom |
+| 🟡 | ValidationPage.jsx | Diff visuel champs modifiés |
+| 🟡 | CataloguePage.jsx | Persister filtres (sessionStorage) |
+| 🟡 | DevisPage.jsx | Charger entreprise depuis settings au mount |
+| 🟡 | Navbar.jsx | Badge "validation en attente" |
+| 🟡 | package.json | Déplacer vitest, eslint en devDependencies |
+| 🟡 | api.py | SameSite=strict cookie (S-003) |
+| 🟡 | auth_service.py | logger.warning pour token invalide |
+| 🟡 | config.py | Validation chemin WATCHDOG_FOLDER |
 
 ---
 
 ## R4 — SYNTHÈSE PAR PHASE
 
 ### Phase 01 — Nettoyage
-- 10 fichiers anciens audits supprimés.
-- Build OK (pnpm + node-linker=hoisted).
-- .gitignore complété.
+- **GATE : PASS**
+- rules_backup, RAPPORT vide supprimés ; __pycache__ nettoyés ; .gitignore complété (.coverage)
+- Build backend + frontend OK
 
 ### Phase 02 — Cartographie
-- ~80 fichiers source, ~8 300 lignes.
-- Aucune dépendance circulaire.
-- Top fichiers : api.py (778), ScanPage.jsx (770), db_manager.py (646).
+- **GATE : PASS**
+- 100 % fichiers source répertoriés ; aucune dépendance circulaire ; ~12 000 lignes code, ~2 900 tests (ratio 32 %)
 
 ### Phase 03 — Backend
-- 2 🟠 corrigés : JWT_SECRET ≥ 32, BatchSaveRequest max 500.
-- SQL paramétré partout, isolation multi-tenant OK.
-- Ruff : 18 avertissements non bloquants.
+- **GATE : FAIL**
+- Bloqueur : `test_upload_file_reel` (MissingContentLength boto3/Storj)
+- 0 🔴, 0 🟠 code ; 6 🟡 (rate limit sync, _escape_like community, N+1 orchestrator, etc.)
+- B-001, B-002 corrigés (rate limit, _escape_like)
 
 ### Phase 04 — Frontend
-- 1 🟠 apiClient (fallback token).
-- Build OK, chunks lazy-loaded.
-- Couverture ~55–65 %.
+- **GATE : FAIL**
+- 1 🔴 : Logo entreprise absent (devisGenerator attend settings.logo)
+- 4 🟠 : apiClient localStorage, ValidationPage confirmation, Reset catalogue, ProtectedRoute
+- 8 🟡 : devtools prod, window.confirm, filtres, etc.
 
 ### Phase 05 — Base de données
-- Migrations a001–a006 cohérentes.
-- Index idx_jobs_user_id manquant.
-- Isolation multi-tenant validée.
+- **GATE : PASS**
+- Isolation multi-tenant OK ; requêtes paramétrées ; index complets ; migrations a001–a008
+- 4 🟡 : downgrade a005/a006, export sans LIMIT, RTO/RPO
 
 ### Phase 06 — Sécurité
-- Rate limit /process et HSTS prod appliqués.
-- 0 secret en clair, 0 CVE critique.
-- SameSite=Lax (évaluer Strict selon architecture).
+- **GATE : FAIL**
+- 5+ CVE haute pip (cryptography, filelock, werkzeug, wheel)
+- 4 CVE haute npm (serialize-javascript, vite-plugin-pwa, workbox-build)
+- 0 secret en clair ; IDOR mitigé ; SQL paramétré
 
 ### Phase 07 — Tests
-- ~120 backend + ~50 frontend.
-- Tests auth, isolation, upload, batch présents.
-- Conflit conftest tests/ vs backend/tests/.
+- **GATE : PASS**
+- Tests isolation multi-tenant, auth, batch, injection présents
+- test_isolation.py créé dans tests/05_security/ ; conflit backend/tests/ documenté
 
 ### Phase 08 — Build & Déploiement
-- Build frontend OK.
-- **Bloqueurs** : render.yaml, deploy.yml.
-- CI : duplication workflows (ci.yml, ci-cd.yml, tests.yml).
+- **GATE : PASS**
+- deploy.yml corrigé (vars.FRONTEND_PROVIDER) ; render.yaml OK ; .dockerignore, .env.example complétés
 
 ### Phase 09 — Performance
-- Pas de rapport dédié (synthèse des phases 03–08).
-- N+1 absent, pagination, pool OK.
-- Chunks excel-gen/pdf-gen >500 kB (warning).
+- **GATE : FAIL**
+- 6 🟠 : N+1 insert_anonymous_price, get_fournisseurs sans pagination, export sans LIMIT, boto3 sans timeout, excel-gen import statique, Spline ~4 MB
 
 ---
 
@@ -194,18 +192,22 @@ make validate-all
 ruff check backend api.py
 cd docling-pwa && npm run build
 cd docling-pwa && npx vitest run
-JWT_SECRET=test-secret-32-chars-minimum python -m pytest tests/ backend/tests/ -v --tb=short
+JWT_SECRET=test-secret-32-chars-minimum python -m pytest tests/ -v --tb=short -m "not e2e and not external"
+
+# Vérifier CVE
+pip-audit
+cd docling-pwa && npm audit
 ```
 
 ---
 
 ## R6 — PROCHAINES ÉTAPES RECOMMANDÉES
 
-1. **Immédiat** : Corriger render.yaml (DATABASE_URL, JWT_SECRET) et deploy.yml (condition secrets).
-2. **Court terme** : Appliquer correctifs 🟠 (apiClient, migration a007).
-3. **Moyen terme** : Consolider workflows CI, résoudre conflit conftest pytest.
-4. **Backlog** : Traiter les 🟡 et 🔵 selon priorité métier.
+1. **Immédiat** : Corriger CVE pip + npm ; ajouter upload logo Settings ; skip/corriger test_upload_file_reel
+2. **Court terme** : Appliquer correctifs 🟠 (apiClient, confirmation, reset, ProtectedRoute, N+1, export LIMIT)
+3. **Moyen terme** : Lazy-load exceljs ; timeout boto3 ; batch insert_anonymous_price
+4. **Backlog** : Traiter les 🟡 selon priorité métier ; consolider workflows CI ; configurer couverture tests
 
 ---
 
-*Rapport produit par l'agent docs-writer — Phase 10 Audit Bêton Docling — 28 février 2026*
+*Rapport produit selon .cursor/PROMPT AUDIT/10_RAPPORT_FINAL.md — Phase 10 Audit Bêton Docling — 1er mars 2026*

@@ -4,46 +4,45 @@
 
 - Python 3.11+
 - Node.js 20+
+- [uv](https://docs.astral.sh/uv/) (gestionnaire Python)
+- pnpm
 - Compte Neon (https://neon.tech) avec une base PostgreSQL
 - Clé API Google Gemini (https://aistudio.google.com)
 
 ---
 
-## Backend
+## Backend (apps/api)
 
 ```bash
 git clone <repo-url>
-cd docling-agent-assistant
-
-python -m venv venv
-venv\Scripts\activate          # Windows
-# source venv/bin/activate     # Linux/Mac
-
-pip install -r requirements.txt -r requirements-dev.txt
+cd docling
 
 cp .env.example .env
 # Remplir GEMINI_API_KEY, DATABASE_URL et JWT_SECRET dans .env
+
+cd apps/api
+uv sync
 ```
 
 ---
 
 ## Base de données
 
-Les migrations sont gérées par **Alembic**. Après avoir configuré `DATABASE_URL` dans `.env` :
+Les migrations sont gérées par **Alembic**. Depuis la racine ou `apps/api` :
 
 ```bash
-alembic upgrade head
+cd apps/api
+uv run alembic upgrade head
 ```
 
 Cela crée toutes les tables, contraintes et index nécessaires.
 
 ---
 
-## Frontend
+## Frontend (apps/pwa)
 
 ```bash
-cd docling-pwa
-npm install
+pnpm install          # à la racine (workspace) ou dans apps/pwa
 ```
 
 ---
@@ -63,14 +62,14 @@ Lance l'API FastAPI sur `http://localhost:8000` et la PWA Vite sur `https://loca
 
 **Terminal 1 — Backend :**
 ```bash
-venv\Scripts\activate
-uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+cd apps/api
+uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 **Terminal 2 — Frontend :**
 ```bash
-cd docling-pwa
-npm run dev
+cd apps/pwa
+pnpm run dev
 ```
 
 ---

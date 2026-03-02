@@ -5,7 +5,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot\..
 
 Write-Host "=== Ruff ===" -ForegroundColor Cyan
-ruff check api.py backend/ scripts/ tests/ migrations/
+Push-Location apps\api; uv run ruff check . ../../scripts; Pop-Location
 
 Write-Host "=== Gito (si configuré) ===" -ForegroundColor Cyan
 if (Get-Command gito -ErrorAction SilentlyContinue) {

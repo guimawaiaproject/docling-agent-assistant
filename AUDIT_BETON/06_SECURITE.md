@@ -1,6 +1,17 @@
 # 🔒 06 — AUDIT SÉCURITÉ COMPLET
 # OWASP Top 10 2025 · JWT · Injection · Auth · Headers · Secrets
-# Exécuté le 28 février 2026 — Phase 06 Audit Bêton Docling
+# Exécuté le 1er mars 2026 — Phase 06 Audit Bêton Docling
+
+---
+
+## VÉRIFICATIONS (1er mars 2026)
+
+| Critère | Statut |
+|---------|--------|
+| SQL injection (f-string + input) | ✅ Aucune — params $1,$2 |
+| dangerouslySetInnerHTML | ✅ 0 (frontend) |
+| Secrets dans code | À vérifier (grep) |
+| pip-audit | À exécuter dans venv projet |
 
 ---
 
@@ -31,12 +42,14 @@ Un seul problème 🔴 de sécurité = produit non déployable.
 | DELETE /api/v1/catalogue/reset | Non | OUI | Token (admin) | Non | ✅ |
 | POST /api/v1/catalogue/batch | Non | OUI | Token | Non | ✅ |
 | GET /api/v1/catalogue/compare | Non | OUI | Token | Non | ✅ |
+| GET /api/v1/export/my-data | Non | OUI | Token | Non | ✅ |
 
 **Vérification code :**
 - `DBManager.get_job(job_id, user_id)` : `WHERE job_id = $1::uuid AND user_id = $2` ✅
-- `DBManager.get_facture_pdf_url(facture_id, user_id)` : `WHERE id = $1 AND user_id = $2` ✅
+- `DBManager.get_facture_pdf_url(facture_id, user_id)` : `WHERE id = $1 AND user_id = $2` (si user_id non None) ✅
 - `DBManager.get_price_history_by_product_id(product_id, user_id)` : `JOIN produits p ON p.user_id = $2` ✅
 - Tous les endpoints catalogue/stats/history passent `user_id` depuis `_user["sub"]` ✅
+- **Edge case** : `get_facture_pdf_url` et `get_price_history` sans filtre user_id si `user_id=None` — cas théorique (token invalide) ; en pratique `create_token` fournit toujours `sub` ✅
 
 ### Test 2 : Élévation de privilèges
 
@@ -79,10 +92,10 @@ Un seul problème 🔴 de sécurité = produit non déployable.
 
 | Vérification | Statut | Détail |
 |--------------|--------|--------|
-| HSTS | 🟠 | **Manquant** — pas de `Strict-Transport-Security` |
+| HSTS | ✅ | `Strict-Transport-Security` en prod (api.py:252-253) |
 | HTTPS forcé | ⚠️ | Dépend du reverse proxy (non vérifiable dans le code) |
 
-**Score A02 : 85/100** — JWT et Argon2 corrects. HSTS et SameSite=strict à ajouter.
+**Score A02 : 88/100** — JWT et Argon2 corrects. SameSite=strict recommandé.
 
 ---
 
@@ -126,10 +139,9 @@ Un seul problème 🔴 de sécurité = produit non déployable.
 |----------|--------|--------|
 | /api/v1/auth/register | 5/minute | ✅ |
 | /api/v1/auth/login | 5/minute | ✅ |
-| /api/v1/invoices/process | **Aucune** | 🟠 |
+| /api/v1/invoices/process | 20/minute | ✅ |
+| /api/v1/sync/status | 30/minute | ✅ |
 | Autres endpoints | Aucune | 🟡 |
-
-**Risque :** Abus de l'API Gemini (coût, quota) via /process sans limite.
 
 ### Circuit breaker
 
@@ -147,7 +159,7 @@ Un seul problème 🔴 de sécurité = produit non déployable.
 | Extension vérifiée | ✅ | `_ALLOWED_EXTENSIONS` |
 | Lecture par chunks | ✅ | 256 Ko par chunk, rejet si > 50 Mo total |
 
-**Score A04 : 75/100** — Rate limit manquant sur /process.
+**Score A04 : 90/100** — Rate limit /process appliqué.
 
 ---
 
@@ -162,7 +174,7 @@ Un seul problème 🔴 de sécurité = produit non déployable.
 | X-XSS-Protection | ✅ | `1; mode=block` |
 | Referrer-Policy | ✅ | `strict-origin-when-cross-origin` |
 | Permissions-Policy | ✅ | `geolocation=(), microphone=(), camera=()` |
-| Strict-Transport-Security | 🟠 | **Manquant** |
+| Strict-Transport-Security | ✅ | En prod : `max-age=31536000; includeSubDomains` |
 | Content-Security-Policy | 🟡 | Meta CSP dans index.html PWA — pas de header API |
 
 ### CORS
@@ -171,8 +183,8 @@ Un seul problème 🔴 de sécurité = produit non déployable.
 |--------------|--------|--------|
 | allow_origins | ✅ | Liste explicite (localhost, PWA_URL, netlify) |
 | allow_credentials | ✅ | True |
-| allow_methods | ✅ | GET, POST, DELETE, OPTIONS |
-| allow_headers | ✅ | Authorization, Content-Type |
+| allow_methods | ✅ | GET, POST, DELETE, OPTIONS, PATCH |
+| allow_headers | ✅ | Authorization, Content-Type, X-Requested-With |
 
 ### Mode debug
 
@@ -181,34 +193,37 @@ Un seul problème 🔴 de sécurité = produit non déployable.
 | reload | ✅ | `reload=False` dans uvicorn.run |
 | docs/redoc | ⚠️ | Activés par défaut FastAPI — à désactiver en prod si souhaité |
 
-**Score A05 : 80/100** — HSTS et CSP header API à ajouter.
+**Score A05 : 88/100** — HSTS en prod ✅. CSP header API optionnel.
 
 ---
 
 ## S6 — OWASP A06 : VULNERABLE COMPONENTS
 
-### Backend (pip-audit)
+### Backend (pip-audit — exécution 1er mars 2026)
 
-*Exécution pip-audit : timeout lors de l'audit. Vérification manuelle :*
+| Package | Version | CVE | Sévérité | Fix version | Action |
+|---------|---------|-----|----------|-------------|--------|
+| cryptography | 41.0.4 | PYSEC-2023-254, PYSEC-2024-225, GHSA-3ww4-gg4f-jr7f, GHSA-9v9h-cgj8-h64p, GHSA-h4gh-qq45-vh27, GHSA-r6ph-v2qm-q3c2 | Haute | 46.0.5 | 🔴 Mettre à jour |
+| fastapi | 0.104.1 | CVE-2024-24762 (ReDoS multipart) | Moyenne | 0.109.1 | 🟠 Mettre à jour |
+| filelock | 3.20.0 | CVE-2025-68146 (TOCTOU symlink) | Haute | 3.20.1 | 🔴 Mettre à jour |
+| werkzeug | 3.1.3 | CVE-2025-66221, CVE-2026-21860, CVE-2026-27199 (Windows device names) | Moyenne/Haute | 3.1.6 | 🔴 Mettre à jour |
+| wheel | 0.45.1 | CVE-2026-24049 (path traversal chmod) | Haute | 0.46.2 | 🔴 Mettre à jour |
+| ecdsa | 0.19.1 | CVE-2024-23342 (Minerva timing) | Moyenne | — | Pas de fix prévu |
 
-| Package | Version | CVE connues | Action |
-|---------|---------|-------------|--------|
-| fastapi | 0.115.0 | — | OK |
-| PyJWT | 2.10.1 | CVE-2025-45768 (disputée par fournisseur) | Surveiller mise à jour |
-| argon2-cffi | 25.1.0 | — | OK |
-| lxml | 5.4.0 | XXE mitigé (facturx) | OK |
-| slowapi | 0.1.9 | — | OK |
-
-### Frontend (npm audit)
+### Frontend (npm audit — exécution 1er mars 2026)
 
 | Package | Sévérité | CVE | Fix |
 |---------|----------|-----|-----|
-| esbuild (via vite) | moderate | GHSA-67mh-4wv8-2f99 | npm audit fix — breaking |
-| vite | moderate | Dépend esbuild | Idem |
+| serialize-javascript | **high** | GHSA-5c6j-r48x-rmvq (RCE RegExp/Date) | vite-plugin-pwa 0.19.8 |
+| vite-plugin-pwa | **high** | via workbox-build | 0.19.8 |
+| workbox-build | **high** | via @rollup/plugin-terser | — |
+| @rollup/plugin-terser | **high** | via serialize-javascript | — |
+| esbuild | moderate | GHSA-67mh-4wv8-2f99 | vite 7.3.1 |
+| vite | moderate | via esbuild | 7.3.1 |
 
-**Note :** Pas de CVE critique/haute confirmée. 2 vulnérabilités modérées npm.
+**Résumé :** 4 vulnérabilités **haute** npm, 5+ **haute** pip. **🔴 GATE FAIL** sur CVE critique/haute.
 
-**Score A06 : 85/100** — Pas de CVE critique/haute bloquante.
+**Score A06 : 55/100** — CVE haute bloquantes à corriger avant déploiement.
 
 ---
 
@@ -257,7 +272,7 @@ Un seul problème 🔴 de sécurité = produit non déployable.
 
 | Vérification | Statut | Détail |
 |--------------|--------|--------|
-| Requêtes HTTP vers URL utilisateur | ✅ | Aucune — pas de `requests.get(url)` avec URL user |
+| Requêtes HTTP vers URL utilisateur | ✅ | Bytez/Gemini : URLs fixes — pas d'URL user |
 | Watchdog folder | 🟡 | WATCHDOG_FOLDER depuis .env — pas de validation anti-/etc/ |
 
 **Risque Watchdog :** Si .env modifié (accès serveur), WATCHDOG_FOLDER=/etc serait possible. Mitigation : validation du chemin au démarrage.
@@ -273,7 +288,8 @@ Un seul problème 🔴 de sécurité = produit non déployable.
 | Fichier | Ligne | Contenu | Faux positif | Action |
 |---------|-------|---------|--------------|--------|
 | backend/services/gemini_service.py | 99 | `api_key = Config.GEMINI_API_KEY` | Oui (env) | — |
-| docling-pwa/node_modules/.../sentry_react.js | — | `password = "%filtered%"` | Oui (lib) | — |
+| backend/services/storage_service.py | 31 | `aws_secret_access_key=Config.STORJ_SECRET_KEY` | Oui (env) | — |
+| docling-pwa/src/services/apiClient.js | 35 | `localStorage.getItem('docling-token')` | Fallback Bearer | Cookie httpOnly prioritaire |
 
 **Résultat :** 0 secret en clair dans le code source du projet.
 
@@ -286,10 +302,6 @@ git ls-files | grep "\.env$"
 
 **.env dans .gitignore** ✅
 
-### .env.example
-
-Placeholders uniquement (`YOUR_GEMINI_API_KEY`, `change-this-to-a-long-random-string`) — acceptable ✅
-
 **Score Secrets : 95/100**
 
 ---
@@ -300,80 +312,11 @@ Placeholders uniquement (`YOUR_GEMINI_API_KEY`, `change-this-to-a-long-random-st
 |--------------|--------|--------|
 | Validation MIME | ✅ | `_ALLOWED_MIMES` + content_type |
 | Taille max | ✅ | 50 Mo, vérifié avant accumulation |
-| Sanitisation nom fichier | 🟡 | `filename.replace("/", "_")` — pas de `os.path.basename()` pour path traversal |
-| Stockage S3 | ✅ | Clé = `hash8_safe_name` — pas d'exécution |
+| Sanitisation nom fichier | 🟡 | Pas de `os.path.basename()` pour path traversal |
+| Stockage S3/Storj | ✅ | Clé hashée — pas d'exécution |
 | Fichiers temporaires | N/A | Pas de tempfile pour upload (traitement en mémoire) |
 
-**Path traversal :** `../../etc/passwd.pdf` → `.._.._etc_passwd.pdf` (replace) — mitigé mais `os.path.basename()` plus robuste.
-
 **Score File Upload : 88/100**
-
----
-
-## LISTE PROBLÈMES SÉCURITÉ
-
-```
-[S-001] 🟠 CRITIQUE — Rate limiting manquant sur /process
-  OWASP    : A04 - Insecure Design
-  Fichier  : api.py:271
-  Vecteur  : Attaquant envoie des centaines de factures → quota Gemini épuisé, coût élevé
-  Impact   : DoS financier, quota API épuisé
-  Fix      : Ajouter @limiter.limit("20/minute") sur process_invoice
-
-[S-002] 🟠 CRITIQUE — HSTS header manquant
-  OWASP    : A05 - Security Misconfiguration
-  Fichier  : api.py:232-239
-  Vecteur  : Downgrade HTTPS→HTTP en MITM
-  Impact   : Token/cookies interceptables
-  Fix      : En prod : response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-
-[S-003] 🟠 CRITIQUE — SameSite=Lax au lieu de Strict
-  OWASP    : A02 - Cryptographic Failures
-  Fichier  : api.py:459
-  Vecteur  : CSRF partiel sur requêtes cross-site GET
-  Impact   : Risque CSRF réduit mais non nul
-  Fix      : samesite="strict" (ou garder "lax" si redirect login depuis domaine externe)
-
-[S-004] 🟡 MAJEUR — Lockout après échecs login non implémenté
-  OWASP    : A07 - Authentication Failures
-  Fichier  : api.py (login)
-  Vecteur  : Bruteforce avec 5 req/min = 300/h
-  Impact   : Comptes faibles compromis
-  Fix      : Compteur échecs par email/IP, lockout 15 min après 5 échecs
-
-[S-005] 🟡 MAJEUR — Validation chemin WATCHDOG_FOLDER
-  OWASP    : A10 - SSRF / Misconfiguration
-  Fichier  : backend/core/config.py
-  Vecteur  : WATCHDOG_FOLDER=/etc si env modifié
-  Impact   : Surveillance dossier sensible
-  Fix      : Valider que path résolu est sous répertoire autorisé (ex: ./ ou $HOME)
-
-[S-006] 🟡 MAJEUR — Sanitisation filename upload
-  OWASP    : A04 - Insecure Design
-  Fichier  : backend/services/storage_service.py:57
-  Vecteur  : Path traversal dans clé S3 (théorique)
-  Impact   : Clés S3 malformées
-  Fix      : safe_name = os.path.basename(filename).replace(" ", "_").replace("/", "_").replace("\\", "_")
-
-[S-007] 🟡 MAJEUR — Auth failures en niveau debug
-  OWASP    : A09 - Security Logging
-  Fichier  : backend/services/auth_service.py:55
-  Vecteur  : Échecs token invisibles en prod (level INFO)
-  Impact   : Détection attaques retardée
-  Fix      : logger.warning("Token invalide ou payload malformé") au lieu de debug
-
-[S-008] 🔵 MINEUR — Content-Security-Policy non défini (API)
-  OWASP    : A05 - Security Misconfiguration
-  Fichier  : api.py
-  Impact   : XSS secondaire non mitigé par CSP
-  Fix      : CSP présent dans PWA index.html — API stateless, priorité basse
-
-[S-009] 🔵 MINEUR — Argon2 time_cost=3
-  OWASP    : A02 - Cryptographic Failures
-  Fichier  : backend/services/auth_service.py:32
-  Impact   : Légèrement plus lent que time_cost=2 (OWASP recommande 2)
-  Fix      : time_cost=2 acceptable pour meilleur équilibre perf/sécu
-```
 
 ---
 
@@ -382,60 +325,59 @@ Placeholders uniquement (`YOUR_GEMINI_API_KEY`, `change-this-to-a-long-random-st
 | OWASP | Score /100 | Problèmes 🔴 | Problèmes 🟠 | Notes |
 |-------|-----------|-------------|-------------|-------|
 | A01 Broken Access Control | 95 | 0 | 0 | IDOR mitigé |
-| A02 Cryptographic Failures | 85 | 0 | 1 | SameSite, HSTS |
+| A02 Cryptographic Failures | 88 | 0 | 1 | SameSite |
 | A03 Injection | 92 | 0 | 0 | SQL, XSS OK |
-| A04 Insecure Design | 75 | 0 | 1 | Rate limit /process |
-| A05 Security Misconfiguration | 80 | 0 | 1 | HSTS, CSP |
-| A06 Vulnerable Components | 85 | 0 | 0 | 2 modérées npm |
+| A04 Insecure Design | 90 | 0 | 0 | Rate limit OK |
+| A05 Security Misconfiguration | 88 | 0 | 0 | HSTS OK |
+| A06 Vulnerable Components | **55** | **5+** | **2** | CVE haute pip + npm |
 | A07 Authentication Failures | 78 | 0 | 0 | Lockout manquant |
 | A08 Data Integrity Failures | 70 | 0 | 0 | require-hashes |
 | A09 Security Logging | 82 | 0 | 0 | Auth log level |
 | A10 SSRF | 88 | 0 | 0 | Watchdog path |
 | Secrets | 95 | 0 | 0 | OK |
 | File Uploads | 88 | 0 | 0 | Sanitisation |
-| **GLOBAL SÉCURITÉ** | **84** | **0** | **3** | Déployable avec correctifs 🟠 |
+| **GLOBAL SÉCURITÉ** | **78** | **5+** | **3** | **NON DÉPLOYABLE** — CVE haute |
 
 ---
 
-## CORRECTIFS PRIORITAIRES (🔴 et 🟠)
+## LISTE PROBLÈMES SÉCURITÉ
 
-### [S-001] Rate limit /process
-
-```python
-# api.py, avant process_invoice
-@app.post("/api/v1/invoices/process")
-@limiter.limit("20/minute")
-async def process_invoice(...):
 ```
+[S-001] 🔴 FATAL — CVE haute pip (cryptography, filelock, werkzeug, wheel)
+  OWASP    : A06 - Vulnerable Components
+  Vecteur  : Exploitation des vulnérabilités connues
+  Impact   : DoS, déni de service, fuite de données
+  Fix      : pip install -U cryptography filelock werkzeug wheel
+             pip-audit après mise à jour
 
-### [S-002] HSTS en production
+[S-002] 🔴 FATAL — CVE haute npm (serialize-javascript, vite-plugin-pwa)
+  OWASP    : A06 - Vulnerable Components
+  Vecteur  : RCE via RegExp.flags / Date.prototype (GHSA-5c6j-r48x-rmvq)
+  Impact   : Exécution de code arbitraire côté build
+  Fix      : npm update vite-plugin-pwa@0.19.8 (ou version fixée)
+             npm audit après mise à jour
 
-```python
-# api.py, _security_headers
-async def _security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-    if os.getenv("ENVIRONMENT", "").lower() == "production":
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    return response
+[S-003] 🟠 CRITIQUE — SameSite=Lax au lieu de Strict
+  OWASP    : A02 - Cryptographic Failures
+  Fichier  : api.py:459
+  Vecteur  : CSRF partiel sur requêtes cross-site GET
+  Fix      : samesite="strict" (ou garder "lax" si redirect login depuis domaine externe)
+
+[S-004] 🟡 MAJEUR — Lockout après échecs login non implémenté
+  OWASP    : A07 - Authentication Failures
+  Vecteur  : Bruteforce avec 5 req/min = 300/h
+  Fix      : Compteur échecs par email/IP, lockout 15 min après 5 échecs
+
+[S-005] 🟡 MAJEUR — Validation chemin WATCHDOG_FOLDER
+  OWASP    : A10 - SSRF / Misconfiguration
+  Fichier  : backend/core/config.py
+  Fix      : Valider que path résolu est sous répertoire autorisé
+
+[S-006] 🟡 MAJEUR — Auth failures en niveau debug
+  OWASP    : A09 - Security Logging
+  Fichier  : backend/services/auth_service.py:55
+  Fix      : logger.warning("Token invalide ou payload malformé")
 ```
-
-### [S-003] SameSite Strict (optionnel)
-
-```python
-# api.py, _set_auth_cookie
-response.set_cookie(
-    ...
-    samesite="strict",  # était "lax"
-    ...
-)
-```
-
-*Note :* Si la PWA est chargée depuis un domaine différent du backend et que le login redirige, `lax` peut être nécessaire. Évaluer selon l'architecture.
 
 ---
 
@@ -445,22 +387,24 @@ response.set_cookie(
 
 | Critère | Résultat |
 |---------|----------|
-| 0 problème 🔴 | ✅ |
+| 0 problème 🔴 | ❌ — CVE haute pip + npm |
 | 0 secret dans le code | ✅ |
 | 0 .env commité | ✅ |
-| 0 CVE critique/haute | ✅ (npm : 2 modérées) |
+| 0 CVE critique/haute | ❌ — 4 high npm, 5+ high pip |
 | 0 SQL injection (f-string user input) | ✅ |
 | 0 dangerouslySetInnerHTML | ✅ |
 
 ### Verdict
 
-**STATUS : ✅ PASS**
+**STATUS : 🔴 FAIL**
 
-- Aucune faille 🔴 FATAL identifiée.
-- 3 problèmes 🟠 CRITIQUE identifiés — **[S-001] et [S-002] appliqués** (rate limit /process, HSTS prod).
-- 4 problèmes 🟡 MAJEUR recommandés.
-- Le projet est **déployable** en production.
+- **5+ vulnérabilités haute** identifiées (pip + npm).
+- Le projet **n'est pas déployable** en production tant que les CVE haute ne sont pas corrigées.
+- Actions prioritaires :
+  1. `pip install -U cryptography filelock werkzeug` (versions fix)
+  2. `npm update vite-plugin-pwa` ou migration vers version sans vulnérabilité
+  3. Relancer `pip-audit` et `npm audit` — viser 0 critical, 0 high
 
 ---
 
-*Audit exécuté selon `.cursor/PROMPT AUDIT/06_SECURITE.md` — Phase 06 Audit Bêton Docling.*
+*Audit exécuté selon `.cursor/PROMPT AUDIT/06_SECURITE.md` — Phase 06 Audit Bêton Docling — 1er mars 2026.*
